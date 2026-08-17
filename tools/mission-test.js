@@ -16,9 +16,10 @@ const ok = (n, c, x) => { console.log((c ? 'PASS  ' : 'FAIL  ') + n + (c ? '' : 
   await p.goto(BASE + '/index.html');
   await p.waitForSelector('#scHome.show');
   const btns = await p.$$eval('#scHome .btn', els => els.map(e => e.textContent.split('\n')[0].trim()));
-  ok('home shows the three buttons', btns.length === 3, JSON.stringify(btns));
-  ok('button order: Create, Upload Mission, Upload Template',
-     /^Create Mission/.test(btns[0]) && /^Upload Mission/.test(btns[1]) && /^Upload Template/.test(btns[2]),
+  ok('home shows the four ways in', btns.length === 4, JSON.stringify(btns));
+  ok('button order: Create, Upload Mission, Upload Template, Status Board',
+     /^Create Mission/.test(btns[0]) && /^Upload Mission/.test(btns[1]) &&
+     /^Upload Template/.test(btns[2]) && /^Status Board/.test(btns[3]),
      JSON.stringify(btns));
 
   // ---- create mission ----
