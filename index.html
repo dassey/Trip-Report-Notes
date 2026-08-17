@@ -320,7 +320,8 @@ function isPerson(t){
   var name=m[1].trim();
   if(/\d/.test(name))return null;
   if(!/^[A-Za-z][A-Za-z.'\-]*(?:\s+[A-Za-z][A-Za-z.'\-]*)+$/.test(name))return null;
-  return{name:name,role:t.slice(0,m.index).replace(/[\s\-–—]+$/,'').trim()};}
+  var role=t.slice(0,m.index).replace(/[\s\-–—]+$/,'').trim();
+  return{name:name,role:role.replace(/\s+notes$/i,'')};}
 function parseDoc(xmlStr){
   var doc=new DOMParser().parseFromString(xmlStr,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('Could not read the document XML.');
@@ -410,8 +411,7 @@ function buildDoc(person,notes,soldiers){
 /* A created mission has no template to rewrite, so write the .docx ourselves.
    The wording matches what parseDoc() looks for, so the file this produces can be
    loaded straight back in as a template. */
-var MONTHS=['January','February','March','April','May','June','July','August','September',
-'October','November','December'];
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var MAXDAYS=90;
 function dateFromISO(iso){
   var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
@@ -419,7 +419,8 @@ function dateFromISO(iso){
   var d=new Date(+m[1],+m[2]-1,+m[3]);
   return isNaN(d.getTime())?null:d;
 }
-function longDate(d){return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
+function longDate(d){
+  var dd=d.getDate();return (dd<10?'0':'')+dd+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
 function dayWord(n){
   var w=DAY_WORDS[n-1];
   if(!w)return String(n);
@@ -435,9 +436,12 @@ function daysBetween(startISO,endISO){
   return out;
 }
 function xesc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function wp(text,style){
-  return '<w:p>'+(style?'<w:pPr><w:pStyle w:val="'+style+'"/></w:pPr>':'')+
-    (text?'<w:r><w:t xml:space="preserve">'+xesc(text)+'</w:t></w:r>':'')+'</w:p>';
+/* Font and size on every run, not just the document defaults — a section pasted into
+   someone else's master report should still come out Arial 12. */
+var RPR='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/>';
+function wp(text,bold){
+  return '<w:p>'+(text?'<w:r><w:rPr>'+(bold?'<w:b/>':'')+RPR+'</w:rPr>'+
+    '<w:t xml:space="preserve">'+xesc(text)+'</w:t></w:r>':'')+'</w:p>';
 }
 var CT='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
@@ -454,37 +458,39 @@ var DRELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
 '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
 '</Relationships>';
-function style(id,name,sz,bold,after){
-  return '<w:style w:type="paragraph" w:styleId="'+id+'"><w:name w:val="'+name+'"/>'+
-    '<w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/>'+
-    '<w:spacing w:before="240" w:after="'+after+'"/></w:pPr>'+
-    '<w:rPr>'+(bold?'<w:b/>':'')+'<w:sz w:val="'+sz+'"/></w:rPr></w:style>';
-}
 var STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<w:styles xmlns:w="'+W_NS+'">'+
-'<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>'+
-'<w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>'+
+'<w:docDefaults><w:rPrDefault><w:rPr>'+
+'<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/>'+
+'</w:rPr></w:rPrDefault>'+
+'<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault>'+
+'</w:docDefaults>'+
 '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'+
-style('Title','Title','40',true,'120')+
-style('Heading1','heading 1','32',true,'120')+
-style('Heading2','heading 2','26',true,'80')+
 '</w:styles>';
+/* Heading text follows the reports this is meant to sit alongside: an SME role picks up
+   " Notes" before the name — "Intel SME Notes (A. Soldier)" — while a lead does not. */
+function personHeading(m){
+  var role=m.role||'';
+  if(/\bSME$/i.test(role))role+=' Notes';
+  return (role?role+' ':'')+'('+m.name+')';
+}
+function travelOut(m){
+  return (m.startLoc&&m.missionLoc)?'Travel from '+m.startLoc+' to '+m.missionLoc:'';
+}
+function travelBack(m){
+  return (m.missionLoc&&m.nextLoc)?'Travel from '+m.missionLoc+' to '+m.nextLoc:'';
+}
 function missionXml(m,notes,soldiers){
   var b=['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<w:document xmlns:w="'+W_NS+'"><w:body>'];
-  var span=m.days.length?m.days[0].date+' – '+m.days[m.days.length-1].date:'';
-  b.push(wp('Trip Report'+(m.missionLoc?' — '+m.missionLoc:''),'Title'));
-  if(m.startLoc)b.push(wp('Start location: '+m.startLoc));
-  if(m.missionLoc)b.push(wp('Mission location: '+m.missionLoc));
-  if(span)b.push(wp('Dates: '+span));
-  if(m.nextLoc)b.push(wp('Next location: '+m.nextLoc));
-  b.push(wp('Number of soldiers trained: '+(String(soldiers||'').trim()||'0')));
-  b.push(wp((m.role?m.role+' ':'')+'('+m.name+')','Heading1'));
+  b.push(wp('Number of Soldiers Trained:  '+(String(soldiers||'').trim()||'0'),true));
+  b.push(wp(''));
+  b.push(wp(personHeading(m),true));
   m.days.forEach(function(d){
-    b.push(wp(d.label,'Heading2'));
+    b.push(wp(d.label,true));
     var txt=(notes[d.n]||'').replace(/\s+$/,'');
-    if(!txt){b.push(wp(''));return;}
-    txt.split(/\r?\n/).forEach(function(line){b.push(wp(line));});
+    if(txt)txt.split(/\r?\n/).forEach(function(line){b.push(wp(line));});
+    b.push(wp(''));
   });
   b.push('<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'+
     '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>');
@@ -581,8 +587,8 @@ $('pick').onchange=function(e){
   });
 };
 
-var ROLES=['Network SME','Radio SME','Satellite SME','Cyber SME','Signal SME',
-'Maintenance SME','Logistics SME','Medical SME','Team Lead','Instructor','Other…'];
+var ROLES=['Intel SME','AIR Systems SME','Network SME','Maneuver Systems SME',
+'MCAT Lead','Other…'];
 (function(){
   var sel=$('fRole'),h='';
   ROLES.forEach(function(r){h+='<option value="'+esc(r)+'">'+esc(r)+'</option>';});
@@ -618,9 +624,14 @@ $('newSubmit').onclick=function(){
   var days=daysBetween(startISO,endISO);
   if(!days.length)return say('newMsg','Those dates do not make a trip','','bad');
 
-  state={fileName:'',b64:'',person:name,soldiers:'00',notes:{},seed:{},curDay:1,
-    mission:{name:name,role:role,startLoc:startLoc,missionLoc:missionLoc,
-             start:startISO,end:endISO,nextLoc:nextLoc,days:days}};
+  var m={name:name,role:role,startLoc:startLoc,missionLoc:missionLoc,
+         start:startISO,end:endISO,nextLoc:nextLoc,days:days};
+  /* Day one travels out, the last day travels on — same as the reports these sit with. */
+  var seed={},out=travelOut(m),back=travelBack(m),lastN=days[days.length-1].n;
+  if(out)seed[days[0].n]=out;
+  if(back)seed[lastN]=(seed[lastN]?seed[lastN]+'\n':'')+back;
+  var notes={};Object.keys(seed).forEach(function(k){notes[k]=seed[k];});
+  state={fileName:'',b64:'',person:name,soldiers:'00',notes:notes,seed:seed,curDay:1,mission:m};
   sections=[];xmlCache='';tplBuf=null;built=null;
   clearTemplateBytes();
   persist();renderDay();show('scDay');schedulePrebuild();
