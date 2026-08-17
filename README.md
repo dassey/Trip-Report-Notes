@@ -9,11 +9,15 @@ the phone — the app rewrites the Word file in the browser.
 
 ## Getting it on an iPhone
 
-1. Turn on GitHub Pages for this repository once: **Settings → Pages → Build and
-   deployment → Source: GitHub Actions**. Every push to `main` then publishes it.
-2. Open the published URL (`https://<owner>.github.io/<repo>/`) in Safari on the phone.
-3. Tap **Share → Add to Home Screen**. It opens full screen, with no address bar, and
+**<https://dassey.github.io/Trip-Report-Notes/>**
+
+1. Open that in Safari on the phone.
+2. Tap **Share → Add to Home Screen**. It opens full screen, with no address bar, and
    works with no signal after the first visit.
+
+Pages is already on for this repository, and every push to `main` republishes it. A
+fresh fork needs it turned on once: **Settings → Pages → Build and deployment →
+Source: GitHub Actions**.
 
 Do not AirDrop `index.html` and open it from Files — Safari blocks storage on
 `file://`, so notes will not be kept. It has to be served over `https`.
