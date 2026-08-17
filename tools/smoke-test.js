@@ -52,7 +52,7 @@ function ok(name, cond, extra) {
     window.__shareMode = 'ok';
     navigator.canShare = (d) => !!(d && d.files && d.files.length);
     navigator.share = async (d) => {
-      const rec = { name: d.files[0].name, size: d.files[0].size, activation: navigator.userActivation ? navigator.userActivation.isActive : null };
+      const rec = { name: d.files[0].name, size: d.files[0].size, keys: Object.keys(d).sort(), activation: navigator.userActivation ? navigator.userActivation.isActive : null };
       window.__shared.push(rec);
       if (window.__shareMode === 'notallowed') { const e = new Error('gesture'); e.name = 'NotAllowedError'; throw e; }
       if (window.__shareMode === 'abort') { const e = new Error('cancel'); e.name = 'AbortError'; throw e; }
@@ -120,6 +120,8 @@ function ok(name, cond, extra) {
   ok('shares a non-empty file', shared.size > 500, 'size ' + shared.size);
   ok('share happens while the tap is still active (iOS requirement)', shared.activation === true,
      'userActivation.isActive=' + shared.activation);
+  ok('shares the file and nothing else (a title becomes a stray .txt on iOS)',
+     JSON.stringify(shared.keys) === '["files"]', JSON.stringify(shared.keys));
   await page.waitForSelector('#dayMsg .msg.good');
   ok('reports success', (await page.textContent('#dayMsg')).includes('Shared'));
 
