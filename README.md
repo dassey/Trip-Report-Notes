@@ -1,11 +1,16 @@
 # Trip Report Notes
 
-A one-page web app for filling in your section of a Word trip report from a phone.
-Load the mission's `.docx` template, pick your name, write a note per day, then hand
-back a `.docx` that contains your section only.
+A one-page web app for writing a trip report from a phone. Three ways to start:
 
-Nothing is uploaded. The template, your notes and the finished document never leave
-the phone — the app rewrites the Word file in the browser.
+- **Create Mission** — no Word file needed. Name, role, locations and dates, and it
+  builds the report itself: one page per day between the dates.
+- **Upload Mission** — a mission file saved from this app. A created mission carries
+  everything, so it picks up where it left off on any phone.
+- **Upload Template** — the mission's `.docx`. Pick your name from the SME headings and
+  the finished document keeps your section only.
+
+Nothing is uploaded. The template, your notes and the finished document never leave the
+phone — the Word file is written in the browser.
 
 ## Getting it on an iPhone
 
@@ -36,7 +41,29 @@ Do not AirDrop `index.html` and open it from Files — Safari blocks storage on
 - **Private Browsing** cannot save anything. The header pill says `not saving` when
   that is the case.
 
-## What it expects in the template
+## What Create Mission produces
+
+A `.docx` laid out the way the parser expects, so it can be loaded straight back in as
+a template later:
+
+```
+Trip Report — Fort Bliss, TX          (Title)
+Start location: HOR
+Mission location: Fort Bliss, TX
+Dates: 3 March 2026 – 7 March 2026
+Next location: HOR
+Number of soldiers trained: 42
+Network SME (David Massey)            (Heading 1)
+Day One (3 March 2026)                (Heading 2)
+  what you typed for that day
+Day Two (4 March 2026)
+  ...
+```
+
+Both `HOR` fields are prefilled and editable. Roles come from a dropdown with an
+**Other…** entry for anything not on the list. Up to 90 days.
+
+## What it expects in an uploaded template
 
 The parser keys off the text of the paragraphs:
 
@@ -81,9 +108,15 @@ loads a template, writes notes, reloads, shares, downloads, goes offline:
 npm i -D playwright && npx playwright install chromium
 mkdir -p /tmp/trip && python3 tools/make-fixture.py /tmp/trip/trip_report.docx
 python3 -m http.server 8777 &
-WORK=/tmp/trip node tools/smoke-test.js
+WORK=/tmp/trip node tools/smoke-test.js      # the template path, sharing, offline
 WORK=/tmp/trip node tools/keyboard-test.js   # the notes box vs. the keyboard
+WORK=/tmp/trip node tools/mission-test.js    # Create Mission, and the .docx it writes
 ```
+
+`mission-test.js` finishes by loading the generated `.docx` back in as a template, so a
+break in either the writer or the parser shows up. To check the file against something
+that is not our own code, `pip install python-docx` and open it — that validates the
+package structure and styles independently.
 
 It runs on Chromium, not Safari, so it is a regression net rather than proof about
 iOS. What it does pin down is the part that silently breaks there: that

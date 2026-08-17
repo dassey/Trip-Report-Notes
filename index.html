@@ -56,6 +56,20 @@ input[type=file]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;bo
 .btn.primary:active{background:var(--acc2);border-color:var(--acc2)}
 .note{font-size:12px;color:var(--dim);margin:2px 0 0;line-height:1.5}
 
+.form .row{margin-bottom:14px}
+.form label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+            font-weight:700;margin-bottom:6px}
+.form input,.form select{width:100%;min-height:52px;padding:13px 14px;border:1px solid var(--line);
+     border-radius:var(--rad);background:var(--panel);color:var(--text);
+     font-family:inherit;font-size:17px;line-height:1.3;-webkit-appearance:none;appearance:none}
+.form input:focus,.form select:focus{outline:none;border-color:var(--acc2)}
+.form input[type=date]{text-align:left}
+.form select{padding-right:38px;
+     background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238b98a9' stroke-width='2'/%3E%3C/svg%3E");
+     background-repeat:no-repeat;background-position:right 14px center}
+.form .two{display:flex;gap:10px}
+.form .two>.row{flex:1;min-width:0}
+
 .lock{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);
       border-radius:var(--rad);background:var(--panel);margin-bottom:14px}
 .lock .nm{font-size:17px;font-weight:700;line-height:1.2}
@@ -111,15 +125,40 @@ textarea:focus{outline:none;border-color:var(--acc2)}
 </header>
 
 <main>
-  <section class="screen show" id="scTpl">
-    <p class="lede">Load the trip report template for this mission. It stays on this phone.</p>
-    <label class="drop" for="pick"><strong>Choose template</strong><span>A .docx trip report</span></label>
+  <section class="screen show" id="scHome">
+    <p class="lede">Everything stays on this phone.</p>
+    <button class="btn" id="newMissionBtn">Create Mission<small>No Word file needed &mdash; fill in the details and start writing</small></button>
+    <label class="btn" for="restorePick">Upload Mission<small>A mission file saved from this app</small></label>
+    <input type="file" id="restorePick" accept=".json,application/json,text/plain">
+    <label class="btn" for="pick">Upload Template<small>A .docx trip report with everyone&rsquo;s sections</small></label>
     <input type="file" id="pick" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
     <div id="tplMsg"></div>
-    <h2>Carrying over progress</h2>
-    <label class="btn ghost" for="restorePick">Restore from a backup file</label>
-    <input type="file" id="restorePick" accept=".json,application/json,text/plain">
     <p class="note" id="a2hs" hidden>Keep this on the phone: tap <strong>Share</strong> at the bottom of Safari, then <strong>Add to Home Screen</strong>. It opens full screen and works with no signal.</p>
+  </section>
+
+  <section class="screen" id="scNew">
+    <p class="lede">The report gets built from this. One page per day between the dates.</p>
+    <div class="form">
+      <div class="row"><label for="fName">Name</label>
+        <input id="fName" type="text" autocapitalize="words" autocomplete="name" placeholder="David Massey"></div>
+      <div class="row"><label for="fRole">Role</label>
+        <select id="fRole"></select></div>
+      <div class="row" id="rowOther" hidden><label for="fRoleOther">Role title</label>
+        <input id="fRoleOther" type="text" autocapitalize="words" placeholder="Network SME"></div>
+      <div class="row"><label for="fStartLoc">Start location</label>
+        <input id="fStartLoc" type="text" autocapitalize="characters" value="HOR"></div>
+      <div class="row"><label for="fMissionLoc">Mission location</label>
+        <input id="fMissionLoc" type="text" autocapitalize="words" placeholder="Fort Bliss, TX"></div>
+      <div class="two">
+        <div class="row"><label for="fStart">Start date</label><input id="fStart" type="date"></div>
+        <div class="row"><label for="fEnd">End date</label><input id="fEnd" type="date"></div>
+      </div>
+      <div class="row"><label for="fNextLoc">Next location</label>
+        <input id="fNextLoc" type="text" autocapitalize="characters" value="HOR"></div>
+    </div>
+    <div id="newMsg"></div>
+    <button class="btn primary" id="newSubmit">Submit</button>
+    <button class="btn ghost" id="newBack">Back</button>
   </section>
 
   <section class="screen" id="scWho">
@@ -143,8 +182,8 @@ textarea:focus{outline:none;border-color:var(--acc2)}
     <div class="saved" id="savedAt"></div>
     <div id="dayMsg"></div>
     <h2>Housekeeping</h2>
-    <button class="btn ghost" id="backupBtn">Download a backup of my notes</button>
-    <button class="btn ghost" id="newTplBtn">Start a new mission template</button>
+    <button class="btn ghost" id="backupBtn">Download this mission as a file</button>
+    <button class="btn ghost" id="newTplBtn">Start over with a different mission</button>
     <p class="note">Safari can clear a site&rsquo;s saved data after about a week of not opening it. Download a backup before a long gap, or add this page to your Home Screen and open it from there.</p>
   </section>
 </main>
@@ -181,7 +220,7 @@ var DAY_WORDS=['one','two','three','four','five','six','seven','eight','nine','t
 'twentytwo','twentythree','twentyfour','twentyfive','twentysix','twentyseven','twentyeight',
 'twentynine','thirty'];
 var $=function(id){return document.getElementById(id);};
-var state={fileName:'',b64:'',person:'',soldiers:'00',notes:{},seed:{},curDay:1};
+var state={fileName:'',b64:'',person:'',soldiers:'00',notes:{},seed:{},curDay:1,mission:null};
 var sections=[],xmlCache='',tplBuf=null,storageOK=false,tmr=null;
 var built=null,buildTmr=null,building=false;
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -367,6 +406,102 @@ function buildDoc(person,notes,soldiers){
   return new XMLSerializer().serializeToString(r.doc);
 }
 
+/* ---------------- building a document from nothing ---------------- */
+/* A created mission has no template to rewrite, so write the .docx ourselves.
+   The wording matches what parseDoc() looks for, so the file this produces can be
+   loaded straight back in as a template. */
+var MONTHS=['January','February','March','April','May','June','July','August','September',
+'October','November','December'];
+var MAXDAYS=90;
+function dateFromISO(iso){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
+  if(!m)return null;
+  var d=new Date(+m[1],+m[2]-1,+m[3]);
+  return isNaN(d.getTime())?null:d;
+}
+function longDate(d){return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
+function dayWord(n){
+  var w=DAY_WORDS[n-1];
+  if(!w)return String(n);
+  return w.charAt(0).toUpperCase()+w.slice(1);
+}
+function daysBetween(startISO,endISO){
+  var a=dateFromISO(startISO),b=dateFromISO(endISO),out=[];
+  if(!a||!b||b<a)return out;
+  for(var i=0,cur=new Date(a);cur<=b&&i<MAXDAYS;i++){
+    out.push({n:i+1,date:longDate(cur),label:'Day '+dayWord(i+1)+' ('+longDate(cur)+')'});
+    cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);
+  }
+  return out;
+}
+function xesc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function wp(text,style){
+  return '<w:p>'+(style?'<w:pPr><w:pStyle w:val="'+style+'"/></w:pPr>':'')+
+    (text?'<w:r><w:t xml:space="preserve">'+xesc(text)+'</w:t></w:r>':'')+'</w:p>';
+}
+var CT='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+'<Default Extension="xml" ContentType="application/xml"/>'+
+'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'+
+'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'+
+'</Types>';
+var RELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'+
+'</Relationships>';
+var DRELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+'</Relationships>';
+function style(id,name,sz,bold,after){
+  return '<w:style w:type="paragraph" w:styleId="'+id+'"><w:name w:val="'+name+'"/>'+
+    '<w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/>'+
+    '<w:spacing w:before="240" w:after="'+after+'"/></w:pPr>'+
+    '<w:rPr>'+(bold?'<w:b/>':'')+'<w:sz w:val="'+sz+'"/></w:rPr></w:style>';
+}
+var STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+'<w:styles xmlns:w="'+W_NS+'">'+
+'<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>'+
+'<w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>'+
+'<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'+
+style('Title','Title','40',true,'120')+
+style('Heading1','heading 1','32',true,'120')+
+style('Heading2','heading 2','26',true,'80')+
+'</w:styles>';
+function missionXml(m,notes,soldiers){
+  var b=['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<w:document xmlns:w="'+W_NS+'"><w:body>'];
+  var span=m.days.length?m.days[0].date+' – '+m.days[m.days.length-1].date:'';
+  b.push(wp('Trip Report'+(m.missionLoc?' — '+m.missionLoc:''),'Title'));
+  if(m.startLoc)b.push(wp('Start location: '+m.startLoc));
+  if(m.missionLoc)b.push(wp('Mission location: '+m.missionLoc));
+  if(span)b.push(wp('Dates: '+span));
+  if(m.nextLoc)b.push(wp('Next location: '+m.nextLoc));
+  b.push(wp('Number of soldiers trained: '+(String(soldiers||'').trim()||'0')));
+  b.push(wp((m.role?m.role+' ':'')+'('+m.name+')','Heading1'));
+  m.days.forEach(function(d){
+    b.push(wp(d.label,'Heading2'));
+    var txt=(notes[d.n]||'').replace(/\s+$/,'');
+    if(!txt){b.push(wp(''));return;}
+    txt.split(/\r?\n/).forEach(function(line){b.push(wp(line));});
+  });
+  b.push('<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'+
+    '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>');
+  b.push('</w:body></w:document>');
+  return b.join('');
+}
+function buildMissionZip(){
+  var zip=new JSZip();
+  zip.file('[Content_Types].xml',CT);
+  zip.folder('_rels').file('.rels',RELS);
+  var w=zip.folder('word');
+  w.file('document.xml',missionXml(state.mission,state.notes,state.soldiers));
+  w.file('styles.xml',STYLES);
+  w.folder('_rels').file('document.xml.rels',DRELS);
+  return zip;
+}
+
 /* ---------------- base64 ---------------- */
 function abToB64(buf){var b=new Uint8Array(buf),s='',C=0x8000;
   for(var i=0;i<b.length;i+=C)s+=String.fromCharCode.apply(null,b.subarray(i,i+C));return btoa(s);}
@@ -383,12 +518,23 @@ function readBuf(file){
 }
 
 /* ---------------- ui ---------------- */
-function show(id){['scTpl','scWho','scDay'].forEach(function(s){$(s).classList.toggle('show',s===id);});
+function show(id){['scHome','scNew','scWho','scDay'].forEach(function(s){$(s).classList.toggle('show',s===id);});
   $('bar').style.display=(id==='scDay')?'flex':'none';
   var m=document.querySelector('main');if(m)m.scrollTop=0;}
 function say(el,title,detail,cls){$(el).innerHTML='<div class="msg '+(cls||'')+'"><b>'+esc(title)+'</b>'+
   (detail?'\n'+esc(detail):'')+'</div>';}
 function mySec(){var r=null;sections.forEach(function(s){if(s.name===state.person)r=s;});return r;}
+/* Two ways in: a mission built here, or a section of an uploaded template.
+   Everything downstream reads the days and the name through these. */
+function myDays(){
+  if(state.mission)return state.mission.days;
+  var s=mySec();return s?s.days:[];
+}
+function ctx(){
+  if(state.mission)return{name:state.mission.name,role:state.mission.role};
+  var s=mySec();return s?{name:s.name,role:s.role}:null;
+}
+function ready(){return !!(state.mission||(xmlCache&&mySec()));}
 function dayClass(n){
   var v=(state.notes[n]||'').trim(),s=(state.seed[n]||'').trim();
   if(!v)return '';
@@ -416,7 +562,7 @@ $('pick').onchange=function(e){
     buf=b;
     return openTemplate(new Uint8Array(buf),file.name);
   }).then(function(){
-    tplBuf=buf;built=null;
+    tplBuf=buf;built=null;state.mission=null;
     state.soldiers=readSoldiers();
     if(state.person&&mySec()){
       state.seed=seedFor(state.person);
@@ -435,6 +581,53 @@ $('pick').onchange=function(e){
   });
 };
 
+var ROLES=['Network SME','Radio SME','Satellite SME','Cyber SME','Signal SME',
+'Maintenance SME','Logistics SME','Medical SME','Team Lead','Instructor','Other…'];
+(function(){
+  var sel=$('fRole'),h='';
+  ROLES.forEach(function(r){h+='<option value="'+esc(r)+'">'+esc(r)+'</option>';});
+  sel.innerHTML=h;
+  sel.onchange=function(){$('rowOther').hidden=(sel.value!=='Other…');};
+})();
+$('newMissionBtn').onclick=function(){
+  $('newMsg').innerHTML='';
+  show('scNew');
+};
+$('newBack').onclick=function(){show('scHome');};
+function chosenRole(){
+  var v=$('fRole').value;
+  return v==='Other…'?$('fRoleOther').value.trim():v;
+}
+$('newSubmit').onclick=function(){
+  var name=$('fName').value.trim().replace(/\s+/g,' ');
+  var role=chosenRole();
+  var startLoc=$('fStartLoc').value.trim();
+  var missionLoc=$('fMissionLoc').value.trim();
+  var startISO=$('fStart').value,endISO=$('fEnd').value;
+  var nextLoc=$('fNextLoc').value.trim();
+
+  if(name.split(' ').length<2)
+    return say('newMsg','A first and last name, please','The report needs it to label your section.','bad');
+  if(!role)
+    return say('newMsg','Pick a role','Or choose Other and type one in.','bad');
+  if(!missionLoc)
+    return say('newMsg','Where is the mission?','','bad');
+  var a=dateFromISO(startISO),b=dateFromISO(endISO);
+  if(!a||!b)return say('newMsg','Both dates, please','Start and end.','bad');
+  if(b<a)return say('newMsg','The end date is before the start date','','bad');
+  var days=daysBetween(startISO,endISO);
+  if(!days.length)return say('newMsg','Those dates do not make a trip','','bad');
+
+  state={fileName:'',b64:'',person:name,soldiers:'00',notes:{},seed:{},curDay:1,
+    mission:{name:name,role:role,startLoc:startLoc,missionLoc:missionLoc,
+             start:startISO,end:endISO,nextLoc:nextLoc,days:days}};
+  sections=[];xmlCache='';tplBuf=null;built=null;
+  clearTemplateBytes();
+  persist();renderDay();show('scDay');schedulePrebuild();
+  say('dayMsg','Mission started',days.length+' day'+(days.length===1?'':'s')+
+    ' from '+days[0].date+' to '+days[days.length-1].date+'.','good');
+};
+
 function renderWho(){
   var h='';
   sections.forEach(function(s,i){h+='<button class="btn" data-i="'+i+'">'+esc(s.name)+
@@ -451,29 +644,29 @@ function renderWho(){
     };
   });
 }
-$('whoBack').onclick=function(){show('scTpl');};
+$('whoBack').onclick=function(){show('scHome');};
 
 function renderDay(){
-  var sec=mySec();if(!sec)return;
-  $('ctxName').textContent=sec.name;
-  $('ctxRole').textContent=sec.role||'';
+  var who=ctx(),days=myDays();if(!who||!days.length)return;
+  $('ctxName').textContent=who.name;
+  $('ctxRole').textContent=who.role||'';
   $('sol').value=state.soldiers||'00';
   var h='';
-  sec.days.forEach(function(d){
+  days.forEach(function(d){
     h+='<button class="day '+dayClass(d.n)+(d.n===state.curDay?' cur':'')+'" data-n="'+d.n+'">'+d.n+'</button>';
   });
   $('strip').innerHTML=h;
   Array.prototype.forEach.call($('strip').children,function(b){
     b.onclick=function(){flush();state.curDay=+b.dataset.n;persist();renderDay();};
   });
-  var cur=null;sec.days.forEach(function(d){if(d.n===state.curDay)cur=d;});
-  if(!cur){cur=sec.days[0];state.curDay=cur.n;}
+  var cur=null;days.forEach(function(d){if(d.n===state.curDay)cur=d;});
+  if(!cur){cur=days[0];state.curDay=cur.n;}
   var m=cur.label.match(/^(day\s+[a-z0-9]+)/i);
   $('dTitle').textContent=m?m[1].replace(/\b\w/g,function(c){return c.toUpperCase();}):cur.label;
   var dm=cur.label.match(/\(?\s*(\d{1,2}\s*[A-Za-z]{3,9}\s*\d{4})\s*\)?/);
   $('dDate').textContent=dm?dm[1].replace(/\s+/g,' '):'';
   $('ta').value=state.notes[state.curDay]||'';
-  var ns=sec.days.map(function(d){return d.n;}),i=ns.indexOf(state.curDay);
+  var ns=days.map(function(d){return d.n;}),i=ns.indexOf(state.curDay);
   $('prev').disabled=i<=0;$('next').disabled=i>=ns.length-1;
   $('savedAt').textContent='';
   var el=$('strip').querySelector('.cur');if(el&&el.scrollIntoView)el.scrollIntoView({inline:'center',block:'nearest'});
@@ -492,8 +685,8 @@ $('ta').oninput=function(){
   },400);
 };
 $('sol').oninput=function(){state.soldiers=$('sol').value.replace(/[^0-9]/g,'');persist();schedulePrebuild();};
-function step(d){var sec=mySec();if(!sec)return;flush();persist();
-  var ns=sec.days.map(function(x){return x.n;}),i=ns.indexOf(state.curDay)+d;
+function step(d){var days=myDays();if(!days.length)return;flush();persist();
+  var ns=days.map(function(x){return x.n;}),i=ns.indexOf(state.curDay)+d;
   if(i<0||i>=ns.length)return;state.curDay=ns[i];persist();renderDay();}
 $('prev').onclick=function(){step(-1);};
 $('next').onclick=function(){step(1);};
@@ -501,7 +694,7 @@ $('next').onclick=function(){step(1);};
 /* Notes are debounced, so make sure nothing is in flight when iOS suspends the tab. */
 function panicSave(){
   clearTimeout(tmr);
-  if(mySec()&&$('scDay').classList.contains('show'))flush();
+  if(ready()&&$('scDay').classList.contains('show'))flush();
   persist();
 }
 window.addEventListener('pagehide',panicSave);
@@ -510,22 +703,32 @@ document.addEventListener('visibilitychange',function(){if(document.visibilitySt
 /* ---------------- save & share ---------------- */
 function outName(){
   var base=(state.fileName||'trip_report').replace(/\.docx$/i,'');
+  if(state.mission){
+    var where=(state.mission.missionLoc||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    base='Trip_Report'+(where?'_'+where:'');
+  }
   var last=(state.person||'').split(/\s+/).pop().replace(/[^A-Za-z\-]/g,'');
   return base+'_'+last+'.docx';
 }
-function stateSig(){return JSON.stringify([state.fileName,state.person,state.soldiers,state.notes]);}
+function stateSig(){return JSON.stringify([state.fileName,state.person,state.soldiers,state.notes,state.mission]);}
 function detailFor(name){
-  var sec=mySec(),written=0,total=0;
-  if(sec){total=sec.days.length;
-    written=sec.days.filter(function(d){return (state.notes[d.n]||'').trim();}).length;}
-  return name+'\n'+written+' of '+total+' days filled.\nYour section only. Everyone else removed.';
+  var days=myDays(),total=days.length;
+  var written=days.filter(function(d){return (state.notes[d.n]||'').trim();}).length;
+  return name+'\n'+written+' of '+total+' days filled.'+
+    (state.mission?'':'\nYour section only. Everyone else removed.');
 }
 function buildBlob(){
   return Promise.resolve().then(function(){
-    if(!xmlCache||!tplBuf)throw new Error('The template is not loaded. Choose it again on the first screen.');
-    var sig=stateSig(),xml=buildDoc(state.person,state.notes,state.soldiers);
-    return JSZip.loadAsync(new Uint8Array(tplBuf)).then(function(zip){
-      zip.file('word/document.xml',xml);
+    var sig=stateSig(),zipP;
+    if(state.mission){
+      zipP=Promise.resolve(buildMissionZip());
+    }else{
+      if(!xmlCache||!tplBuf)throw new Error('The template is not loaded. Choose it again on the first screen.');
+      var xml=buildDoc(state.person,state.notes,state.soldiers);
+      zipP=JSZip.loadAsync(new Uint8Array(tplBuf)).then(function(zip){
+        zip.file('word/document.xml',xml);return zip;});
+    }
+    return zipP.then(function(zip){
       return zip.generateAsync({type:'blob',mimeType:DOCX});
     }).then(function(blob){
       var name=outName(),file=null;
@@ -538,7 +741,7 @@ function buildBlob(){
 /* Build ahead of the tap. iOS only allows navigator.share() while the tap is still
    "fresh", and awaiting the zip in the click handler burns that window. */
 function schedulePrebuild(){
-  if(!state.person||!xmlCache||!tplBuf)return;
+  if(!ready())return;
   clearTimeout(buildTmr);
   buildTmr=setTimeout(function(){
     if(building)return;
@@ -587,8 +790,8 @@ function deliver(b){
 }
 $('save').onclick=function(){
   panicSave();
-  if(!state.person||!xmlCache||!tplBuf){
-    say('dayMsg','The template is not loaded','Choose the trip report template again on the first screen.','bad');
+  if(!ready()){
+    say('dayMsg','Nothing to build yet','Start a mission or load a template on the first screen.','bad');
     return;
   }
   /* Prebuilt and still current: share inside this tap, no await in between. */
@@ -609,12 +812,15 @@ $('save').onclick=function(){
 $('backupBtn').onclick=function(){
   panicSave();
   var blob=new Blob([JSON.stringify({fileName:state.fileName,person:state.person,soldiers:state.soldiers,
-    notes:state.notes,seed:state.seed,curDay:state.curDay,saved:new Date().toISOString()},null,2)],{type:'application/json'});
+    notes:state.notes,seed:state.seed,curDay:state.curDay,mission:state.mission,
+    saved:new Date().toISOString()},null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=(state.fileName||'notes').replace(/\.docx$/i,'')+'_notes-backup.json';
+  a.href=url;a.download=outName().replace(/\.docx$/i,'')+'_mission.json';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},60000);
-  say('dayMsg','Backup downloaded','Keep it with the template. Load it from the first screen if this phone forgets.','good');
+  say('dayMsg','Mission file downloaded',(state.mission?
+    'It holds the whole mission — load it with Upload Mission on any phone.':
+    'Keep it with the template. Load it with Upload Mission, then upload the .docx.'),'good');
 };
 $('restorePick').onchange=function(e){
   var f=e.target.files[0];if(!f)return;
@@ -623,25 +829,29 @@ $('restorePick').onchange=function(e){
   rd.onload=function(){
     try{
       var d=JSON.parse(rd.result);
+      if(!d||typeof d!=='object'||(!d.notes&&!d.person&&!d.mission))
+        throw new Error('That is not a mission file from this app.');
       state.fileName=d.fileName||state.fileName;
       state.person=d.person||'';state.notes=d.notes||{};state.seed=d.seed||{};
       state.soldiers=d.soldiers||'00';state.curDay=d.curDay||1;
+      state.mission=d.mission||null;
+      if(state.mission){sections=[];xmlCache='';tplBuf=null;}
       built=null;persist();
-      if(xmlCache&&mySec()){renderDay();show('scDay');schedulePrebuild();
-        say('dayMsg','Notes restored','Picked up where the backup left off.','good');return;}
-      say('tplMsg','Notes restored','Now choose the same template file to carry on.','good');
+      if(ready()){renderDay();show('scDay');schedulePrebuild();
+        say('dayMsg','Mission loaded','Picked up where it left off.','good');return;}
+      say('tplMsg','Notes loaded','This one came from a template. Upload that .docx to carry on.','good');
     }catch(err){say('tplMsg','That backup file could not be read',err&&err.message?err.message:String(err),'bad');}
   };
   rd.onerror=function(){say('tplMsg','That backup file could not be read','Try downloading it again.','bad');};
   rd.readAsText(f);
 };
 $('newTplBtn').onclick=function(){
-  if(!confirm('Start a new mission?\n\nYour current notes will be cleared from this phone. Save and share first if you still need them.'))return;
-  state={fileName:'',b64:'',person:'',soldiers:'00',notes:{},seed:{},curDay:1};
+  if(!confirm('Start over?\n\nYour current notes will be cleared from this phone. Save and share first if you still need them.'))return;
+  state={fileName:'',b64:'',person:'',soldiers:'00',notes:{},seed:{},curDay:1,mission:null};
   sections=[];xmlCache='';tplBuf=null;built=null;clearTimeout(buildTmr);
   try{localStorage.removeItem(KEY);}catch(e){}
   clearTemplateBytes();
-  $('tplMsg').innerHTML='';$('dayMsg').innerHTML='';show('scTpl');
+  $('tplMsg').innerHTML='';$('dayMsg').innerHTML='';show('scHome');
 };
 
 /* ---------------- home screen hint ---------------- */
@@ -670,6 +880,9 @@ if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostnam
         state.curDay=state.curDay||1;state.soldiers=state.soldiers||'00';}
     }catch(e){}
   }
+  if(state.mission&&state.mission.days&&state.mission.days.length){
+    renderDay();show('scDay');schedulePrebuild();return;
+  }
   loadTemplateBytes().then(function(buf){
     if(!buf)return null;
     return openTemplate(new Uint8Array(buf),state.fileName).then(function(){
@@ -681,9 +894,9 @@ if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostnam
   }).catch(function(){return null;}).then(function(ok){
     if(ok&&state.person&&mySec()){renderDay();show('scDay');schedulePrebuild();return;}
     if(ok){renderWho();show('scWho');return;}
-    show('scTpl');
+    show('scHome');
     if(state.person||Object.keys(state.notes).length){
-      say('tplMsg','Your notes are still here','Choose the same template file again to carry on.','good');
+      say('tplMsg','Your notes are still here','Upload the same template again to carry on.','good');
     }
   });
 })();
