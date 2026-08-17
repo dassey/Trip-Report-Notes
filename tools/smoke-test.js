@@ -61,8 +61,8 @@ function ok(name, cond, extra) {
   });
 
   await page.goto(BASE + '/index.html');
-  await page.waitForSelector('#scTpl.show');
-  ok('boots to template screen', await page.isVisible('#scTpl.show'));
+  await page.waitForSelector('#scHome.show');
+  ok('boots to the home screen', await page.isVisible('#scHome.show'));
   ok('storage pill says saving', (await page.textContent('#stor')) === 'saving', await page.textContent('#stor'));
 
   // ---- load template ----
@@ -169,7 +169,7 @@ function ok(name, cond, extra) {
   ok('service worker registers', swState === 'active' || swState === 'pending', swState);
   await ctx.setOffline(true);
   await page.reload();
-  await page.waitForSelector('#scDay.show, #scTpl.show', { timeout: 15000 });
+  await page.waitForSelector('#scDay.show, #scHome.show', { timeout: 15000 });
   ok('opens with no signal', await page.isVisible('#scDay.show'));
   await ctx.setOffline(false);
 
@@ -178,10 +178,10 @@ function ok(name, cond, extra) {
   const p2 = await ctx2.newPage();
   p2.on('pageerror', e => errors.push('ctx2: ' + String(e)));
   await p2.goto(BASE + '/index.html');
-  await p2.waitForSelector('#scTpl.show');
+  await p2.waitForSelector('#scHome.show');
   await p2.setInputFiles('#restorePick', bkPath);
   await p2.waitForSelector('#tplMsg .msg.good', { timeout: 10000 });
-  ok('restores a backup', (await p2.textContent('#tplMsg')).includes('Notes restored'));
+  ok('restores a template-based backup', (await p2.textContent('#tplMsg')).includes('Notes loaded'));
   await p2.setInputFiles('#pick', DOCX);
   await p2.waitForSelector('#scDay.show', { timeout: 10000 });
   await p2.click('#strip .day:nth-child(2)');
