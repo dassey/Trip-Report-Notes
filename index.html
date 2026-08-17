@@ -810,7 +810,7 @@ function offerShare(b,why){
     '<button class="btn ghost" id="doSave">Save to Files instead</button>';
   if($('doShare'))$('doShare').onclick=function(){
     if(!canShare(b))return download(b);
-    navigator.share({files:[b.file],title:b.name}).then(function(){
+    navigator.share({files:[b.file]}).then(function(){
       say('dayMsg','Shared',b.detail,'good');
     }).catch(function(err){
       if(err&&err.name==='AbortError'){say('dayMsg','Sharing cancelled','Your notes are still here.','');return;}
@@ -822,7 +822,9 @@ function offerShare(b,why){
 function deliver(b){
   if(!canShare(b))return download(b);
   var p;
-  try{p=navigator.share({files:[b.file],title:b.name});}
+  /* Files and nothing else: a title here comes through as a separate text item on
+     iOS, which lands as a stray .txt beside the document. */
+  try{p=navigator.share({files:[b.file]});}
   catch(err){offerShare(b,err);return;}
   p.then(function(){say('dayMsg','Shared',b.detail,'good');})
    .catch(function(err){
