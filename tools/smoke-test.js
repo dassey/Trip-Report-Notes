@@ -69,12 +69,12 @@ function ok(name, cond, extra) {
   await page.setInputFiles('#pick', DOCX);
   await page.waitForSelector('#scWho.show', { timeout: 10000 });
   const people = await page.$$eval('#whoList .btn', els => els.map(e => e.textContent));
-  ok('finds both SMEs', people.length === 2 && /David Massey/.test(people[0]), JSON.stringify(people));
+  ok('finds both SMEs', people.length === 2 && /Jane Doe/.test(people[0]), JSON.stringify(people));
 
   // ---- pick a person ----
   await page.click('#whoList .btn:nth-child(1)');
   await page.waitForSelector('#scDay.show');
-  ok('locks in the person', (await page.textContent('#ctxName')) === 'David Massey');
+  ok('locks in the person', (await page.textContent('#ctxName')) === 'Jane Doe');
   ok('reads soldiers trained', (await page.inputValue('#sol')) === '42', await page.inputValue('#sol'));
   const days = await page.$$eval('#strip .day', els => els.map(e => e.textContent));
   ok('lists three days', days.join(',') === '1,2,3', days.join(','));
@@ -105,7 +105,7 @@ function ok(name, cond, extra) {
   await page.reload();
   await page.waitForSelector('#scDay.show', { timeout: 10000 });
   ok('reload goes straight back to the day screen', await page.isVisible('#scDay.show'));
-  ok('reload keeps the person', (await page.textContent('#ctxName')) === 'David Massey');
+  ok('reload keeps the person', (await page.textContent('#ctxName')) === 'Jane Doe');
   ok('reload keeps soldiers', (await page.inputValue('#sol')) === '57', await page.inputValue('#sol'));
   await page.click('#strip .day:nth-child(1)');
   ok('reload keeps day 1 notes', (await page.inputValue('#ta')).includes('Rebuilt the network'));
@@ -116,7 +116,7 @@ function ok(name, cond, extra) {
   await page.waitForFunction(() => window.__shared.length > 0, null, { timeout: 15000 });
   const shared = await page.evaluate(() => window.__shared[0]);
   ok('shares a .docx', /\.docx$/.test(shared.name), shared.name);
-  ok('filename carries the surname', /_Massey\.docx$/.test(shared.name), shared.name);
+  ok('filename carries the surname', /_Doe\.docx$/.test(shared.name), shared.name);
   ok('shares a non-empty file', shared.size > 500, 'size ' + shared.size);
   ok('share happens while the tap is still active (iOS requirement)', shared.activation === true,
      'userActivation.isActive=' + shared.activation);
@@ -145,14 +145,14 @@ function ok(name, cond, extra) {
   await dl.saveAs(dlPath);
   ok('falls back to a download', fs.existsSync(dlPath) && fs.statSync(dlPath).size > 500,
      'size ' + (fs.existsSync(dlPath) ? fs.statSync(dlPath).size : 0));
-  ok('download is named right', /_Massey\.docx$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+  ok('download is named right', /_Doe\.docx$/.test(dl.suggestedFilename()), dl.suggestedFilename());
 
   // ---- backup json ----
   const [bk] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.click('#backupBtn')]);
   const bkPath = path.join(WORK, 'backup.json');
   await bk.saveAs(bkPath);
   const backup = JSON.parse(fs.readFileSync(bkPath, 'utf8'));
-  ok('backup carries the notes', backup.person === 'David Massey' && Object.keys(backup.notes).length >= 2,
+  ok('backup carries the notes', backup.person === 'Jane Doe' && Object.keys(backup.notes).length >= 2,
      JSON.stringify(Object.keys(backup.notes)));
 
   // ---- viewport: bottom bar stays on screen ----

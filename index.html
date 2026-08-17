@@ -139,7 +139,7 @@ textarea:focus{outline:none;border-color:var(--acc2)}
   <section class="screen" id="scNew">
     <div class="form">
       <div class="row"><label for="fName">Name</label>
-        <input id="fName" type="text" autocapitalize="words" autocomplete="name" placeholder="David Massey"></div>
+        <input id="fName" type="text" autocapitalize="words" autocomplete="name"></div>
       <div class="row"><label for="fRole">Role</label>
         <select id="fRole"></select></div>
       <div class="row" id="rowOther" hidden><label for="fRoleOther">Role title</label>
@@ -554,7 +554,7 @@ function openTemplate(u8,fileName){
   }).then(function(xml){
     xmlCache=xml;
     sections=parseDoc(xmlCache).sections;
-    if(!sections.length)throw new Error('No SME sections found. Expected headings like "Network SME (David Massey)".');
+    if(!sections.length)throw new Error('No SME sections found. Expected headings like "Network SME (Jane Doe)".');
     state.fileName=fileName||state.fileName;
   });
 }
