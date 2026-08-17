@@ -1088,32 +1088,45 @@ function boardName(){
   var n=(board.node||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
   return 'Node_Status_Board'+(n?'_'+n:'')+'.pptx';
 }
-$('bMake').onclick=function(){
+/* One build path, shared by the button and the WebMCP tool. */
+function boardTrouble(){
   var live=board.rows.filter(function(r){return (r.system||'').trim()||(r.id||'').trim();});
-  if(!live.length)return say('boardMsg','Nothing to put on the board','Add a system first.','bad');
-  var groups=groupRows(live);
+  if(!live.length)return{title:'Nothing to put on the board',detail:'Add a system first.'};
+  var groups=groupRows(live),over=null;
   if(groups.length>MAX_CARDS)
-    return say('boardMsg','Too many IDs for one slide',groups.length+' IDs, and '+MAX_CARDS+' is what fits.','bad');
-  var over=null;
+    return{title:'Too many IDs for one slide',detail:groups.length+' IDs, and '+MAX_CARDS+' is what fits.'};
   groups.forEach(function(g){if(g.rows.length>MAX_ROWS)over=g.id;});
-  if(over)return say('boardMsg','Too many systems under one ID','"'+over+'" has more than '+MAX_ROWS+'.','bad');
-
-  var keep=board.rows;
-  board.rows=live;
+  if(over)return{title:'Too many systems under one ID',detail:'"'+over+'" has more than '+MAX_ROWS+'.'};
+  return null;
+}
+function buildBoardFile(){
+  return Promise.resolve().then(function(){
+    var bad=boardTrouble();
+    if(bad)throw new Error(bad.title+' — '+bad.detail);
+    var live=board.rows.filter(function(r){return (r.system||'').trim()||(r.id||'').trim();});
+    var groups=groupRows(live),keep=board.rows;
+    board.rows=live;
+    return buildBoardZip().generateAsync({type:'blob',mimeType:PPTX}).then(function(blob){
+      board.rows=keep;
+      var name=boardName(),file=null;
+      try{file=new File([blob],name,{type:PPTX});}catch(e){}
+      var notes=live.filter(function(r){return (r.note||'').trim();}).length;
+      return{file:file,blob:blob,name:name,sig:'board',cards:groups.length,systems:live.length,notes:notes,
+        detail:name+'\n'+groups.length+(groups.length===1?' card, ':' cards, ')+live.length+
+          ' system'+(live.length===1?'':'s')+', '+notes+' on the discrepancy slide.'};
+    }).catch(function(e){board.rows=keep;throw e;});
+  });
+}
+$('bMake').onclick=function(){
+  var bad=boardTrouble();
+  if(bad)return say('boardMsg',bad.title,bad.detail,'bad');
   var btn=this;btn.disabled=true;
   say('boardMsg','Building the slides','One moment.','');
-  Promise.resolve().then(function(){
-    return buildBoardZip().generateAsync({type:'blob',mimeType:PPTX});
-  }).then(function(blob){
-    board.rows=keep;btn.disabled=false;
-    var name=boardName(),file=null;
-    try{file=new File([blob],name,{type:PPTX});}catch(e){}
-    var notes=live.filter(function(r){return (r.note||'').trim();}).length;
-    var detail=name+'\n'+groups.length+(groups.length===1?' card, ':' cards, ')+live.length+
-      ' system'+(live.length===1?'':'s')+', '+notes+' on the discrepancy slide.';
-    deliver({file:file,blob:blob,name:name,detail:detail,sig:'board'},'boardMsg');
+  buildBoardFile().then(function(b){
+    btn.disabled=false;
+    deliver(b,'boardMsg');
   }).catch(function(err){
-    board.rows=keep;btn.disabled=false;
+    btn.disabled=false;
     say('boardMsg','Could not build the slides',err&&err.message?err.message:String(err),'bad');
   });
 };
@@ -1270,6 +1283,314 @@ $('newTplBtn').onclick=function(){
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
   window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
 }
+
+/* ---------------- WebMCP ---------------- */
+/* Hands the page's own actions to an agent running in the browser. The spec moved from
+   navigator.modelContext to document.modelContext during 2026 and Chrome still ships the
+   old surface behind its origin trial, so try both and use whichever answers.
+   Secure context only, which Pages gives us. */
+function mcHost(){
+  try{
+    if(typeof document!=='undefined'&&document.modelContext)return document.modelContext;
+    if(typeof navigator!=='undefined'&&navigator.modelContext)return navigator.modelContext;
+  }catch(e){}
+  return null;
+}
+function mcOk(text){return{content:[{type:'text',text:String(text)}]};}
+function mcErr(text){return{content:[{type:'text',text:'Error: '+String(text)}],isError:true};}
+function mcJson(o){return mcOk(JSON.stringify(o,null,2));}
+function dayByNumber(n){
+  var days=myDays(),hit=null;
+  days.forEach(function(d){if(d.n===n)hit=d;});
+  if(!hit)throw new Error('There is no day '+n+'. Days run 1 to '+(days.length||0)+'.');
+  return hit;
+}
+function refreshDay(){
+  if($('scDay').classList.contains('show'))renderDay();
+}
+
+var MCP_TOOLS=[
+{
+  name:'get-status',
+  description:'What the app currently holds: whether a mission was created here or a report was '+
+    'uploaded, who the notes belong to, how many days there are and how many are written, '+
+    'the soldier count, and whether this phone is saving.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    var who=ctx(),days=myDays();
+    return mcJson({
+      source: state.mission?'created mission':(xmlCache?'uploaded report':'nothing loaded'),
+      person: who?who.name:null,
+      role: who?who.role:null,
+      fileName: state.fileName||null,
+      soldiersTrained: state.soldiers,
+      days: days.length,
+      daysWritten: days.filter(function(d){return (state.notes[d.n]||'').trim();}).length,
+      currentDay: state.curDay,
+      savingOnThisDevice: storageOK,
+      statusBoardSystems: board.rows.filter(function(r){return (r.system||'').trim();}).length
+    });
+  }
+},
+{
+  name:'list-roles',
+  description:'The roles offered when creating a mission.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){return mcJson(ROLES);}
+},
+{
+  name:'create-mission',
+  description:'Start a mission from scratch — no Word file needed. Builds one day per date '+
+    'between the start and end dates, seeds the travel legs on the first and last day, and '+
+    'opens the notes screen. Replaces anything currently loaded.',
+  inputSchema:{type:'object',properties:{
+    name:{type:'string',description:'First and last name'},
+    role:{type:'string',description:'Role title, e.g. "Network SME"'},
+    startLocation:{type:'string',description:'Where travel begins. Defaults to HOR.'},
+    missionLocation:{type:'string',description:'Where the mission happens'},
+    startDate:{type:'string',description:'First day, YYYY-MM-DD'},
+    endDate:{type:'string',description:'Last day, YYYY-MM-DD'},
+    nextLocation:{type:'string',description:'Where travel goes afterwards. Defaults to HOR.'}
+  },required:['name','role','missionLocation','startDate','endDate']},
+  execute:function(a){
+    var nm=String(a.name||'').trim().replace(/\s+/g,' ');
+    if(nm.split(' ').length<2)return mcErr('A first and last name are needed.');
+    var days=daysBetween(a.startDate,a.endDate);
+    if(!days.length)return mcErr('Those dates do not make a trip. Use YYYY-MM-DD, end on or after start.');
+    $('fName').value=nm;
+    $('fRole').value=(ROLES.indexOf(a.role)!==-1)?a.role:'Other…';
+    $('fRoleOther').value=(ROLES.indexOf(a.role)!==-1)?'':String(a.role||'');
+    $('rowOther').hidden=($('fRole').value!=='Other…');
+    $('fStartLoc').value=a.startLocation||'HOR';
+    $('fMissionLoc').value=a.missionLocation||'';
+    $('fStart').value=a.startDate;$('fEnd').value=a.endDate;
+    $('fNextLoc').value=a.nextLocation||'HOR';
+    $('newSubmit').click();
+    if(!state.mission)return mcErr(($('newMsg').textContent||'The form would not accept that.').trim());
+    return mcOk('Mission started for '+nm+': '+days.length+' days, '+days[0].date+' to '+
+      days[days.length-1].date+'.');
+  }
+},
+{
+  name:'list-days',
+  description:'Every day of the current mission or report: number, date, and what is written.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    if(!ready())return mcErr('Nothing is loaded yet.');
+    return mcJson(myDays().map(function(d){
+      var v=(state.notes[d.n]||'');
+      return{day:d.n,date:d.date||'',label:d.label,written:!!v.trim(),
+        fromTheFile:v.trim()!==''&&v===(state.seed[d.n]||''),text:v};
+    }));
+  }
+},
+{
+  name:'read-day',
+  description:'The notes written for one day.',
+  inputSchema:{type:'object',properties:{day:{type:'number',description:'Day number, starting at 1'}},
+    required:['day']},
+  execute:function(a){
+    if(!ready())return mcErr('Nothing is loaded yet.');
+    try{var d=dayByNumber(a.day);}catch(e){return mcErr(e.message);}
+    return mcOk(state.notes[d.n]||'(nothing written for '+d.label+')');
+  }
+},
+{
+  name:'write-day',
+  description:'Set or add to the notes for one day. Writing replaces what is there unless append is true.',
+  inputSchema:{type:'object',properties:{
+    day:{type:'number',description:'Day number, starting at 1'},
+    text:{type:'string',description:'What happened that day'},
+    append:{type:'boolean',description:'Add to the existing notes on a new line instead of replacing'}
+  },required:['day','text']},
+  execute:function(a){
+    if(!ready())return mcErr('Nothing is loaded yet.');
+    try{var d=dayByNumber(a.day);}catch(e){return mcErr(e.message);}
+    var cur=state.notes[d.n]||'';
+    var next=a.append&&cur.trim()?(cur.replace(/\s+$/,'')+'\n'+a.text):String(a.text);
+    if(next.trim())state.notes[d.n]=next; else delete state.notes[d.n];
+    persist();refreshDay();schedulePrebuild();
+    return mcOk((a.append?'Added to ':'Wrote ')+d.label+'. It now reads:\n'+(state.notes[d.n]||'(empty)'));
+  }
+},
+{
+  name:'set-soldiers-trained',
+  description:'Set the number of soldiers trained that goes on the report.',
+  inputSchema:{type:'object',properties:{count:{type:'number',description:'How many'}},required:['count']},
+  execute:function(a){
+    var n=String(a.count).replace(/[^0-9]/g,'');
+    if(!n)return mcErr('That is not a number.');
+    state.soldiers=n;persist();
+    if($('sol'))$('sol').value=n;
+    schedulePrebuild();
+    return mcOk('Soldiers trained set to '+n+'.');
+  }
+},
+{
+  name:'list-people',
+  description:'When a report has been uploaded, the people it holds sections for.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    if(!sections.length)return mcErr('No report is loaded. This only applies to an uploaded .docx.');
+    return mcJson(sections.map(function(x){return{name:x.name,role:x.role,days:x.days.length};}));
+  }
+},
+{
+  name:'choose-person',
+  description:'Pick whose section of an uploaded report to work on. Their existing notes come '+
+    'into the day boxes.',
+  inputSchema:{type:'object',properties:{name:{type:'string',description:'Exactly as list-people gives it'}},
+    required:['name']},
+  execute:function(a){
+    if(!sections.length)return mcErr('No report is loaded.');
+    var hit=null;
+    sections.forEach(function(x){if(x.name.toLowerCase()===String(a.name||'').toLowerCase())hit=x;});
+    if(!hit)return mcErr('No section for "'+a.name+'".');
+    state.person=hit.name;state.curDay=1;
+    state.seed=seedFor(hit.name);state.notes={};
+    Object.keys(state.seed).forEach(function(k){state.notes[k]=state.seed[k];});
+    built=null;persist();renderDay();show('scDay');schedulePrebuild();
+    return mcOk('Working as '+hit.name+(hit.role?' ('+hit.role+')':'')+', '+hit.days.length+' days.');
+  }
+},
+{
+  name:'build-report',
+  description:'Build the Word document from what is written and hand it to the device to save. '+
+    'Returns the filename.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    if(!ready())return mcErr('Nothing is loaded yet.');
+    return buildBlob().then(function(b){
+      download(b,$('scDay').classList.contains('show')?'dayMsg':'boardMsg');
+      return mcOk('Built '+b.name+'. '+b.detail.split('\n')[1]);
+    }).catch(function(e){return mcErr(e.message||String(e));});
+  }
+},
+{
+  name:'get-status-board',
+  description:'The status board as it stands: unit, node number, overall status, and every system '+
+    'with its ID, status and discrepancy.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    loadBoard();
+    return mcJson({unit:board.unit,nodeNo:board.node,overall:board.overall,
+      systems:board.rows.filter(function(r){return (r.system||'').trim()||(r.id||'').trim();})});
+  }
+},
+{
+  name:'set-status-board-header',
+  description:'Set the unit, node number and overall status shown across the top of the board.',
+  inputSchema:{type:'object',properties:{
+    unit:{type:'string'},nodeNo:{type:'string'},
+    overall:{type:'string',description:'FMC, PMC, NMC or N/A'}
+  }},
+  execute:function(a){
+    loadBoard();
+    if(a.unit!==undefined)board.unit=String(a.unit);
+    if(a.nodeNo!==undefined)board.node=String(a.nodeNo);
+    if(a.overall!==undefined){
+      if(STATUSES.indexOf(a.overall)===-1)return mcErr('Status must be one of '+STATUSES.join(', ')+'.');
+      board.overall=a.overall;
+    }
+    saveBoard();
+    if($('scBoard').classList.contains('show'))renderBoard();
+    return mcOk('Board header set: unit "'+board.unit+'", node "'+board.node+'", overall '+board.overall+'.');
+  }
+},
+{
+  name:'add-status-board-system',
+  description:'Add one system to the status board. Systems sharing an ID become one card on the '+
+    'first slide; a discrepancy also puts it on the second.',
+  inputSchema:{type:'object',properties:{
+    system:{type:'string',description:'e.g. "Colorless Core"'},
+    id:{type:'string',description:'Which node it belongs to, e.g. "JNN # 1"'},
+    status:{type:'string',description:'FMC, PMC, NMC or N/A'},
+    discrepancy:{type:'string',description:'What is wrong with it, if anything'}
+  },required:['system','id','status']},
+  execute:function(a){
+    if(STATUSES.indexOf(a.status)===-1)return mcErr('Status must be one of '+STATUSES.join(', ')+'.');
+    loadBoard();
+    board.rows=board.rows.filter(function(r){return (r.system||'').trim()||(r.id||'').trim();});
+    board.rows.push({system:String(a.system),id:String(a.id),status:a.status,
+      note:a.discrepancy?String(a.discrepancy):''});
+    saveBoard();
+    if($('scBoard').classList.contains('show'))renderBoard();
+    return mcOk('Added '+a.system+' under '+a.id+' as '+a.status+'. The board now has '+
+      board.rows.length+' systems.');
+  }
+},
+{
+  name:'remove-status-board-system',
+  description:'Remove a system from the board by its position, counting from 1 as get-status-board lists them.',
+  inputSchema:{type:'object',properties:{position:{type:'number'}},required:['position']},
+  execute:function(a){
+    loadBoard();
+    var i=Math.round(a.position)-1;
+    if(i<0||i>=board.rows.length)return mcErr('There is no system '+a.position+'.');
+    var gone=board.rows.splice(i,1)[0];
+    if(!board.rows.length)board.rows=[{system:'',id:'',status:'FMC',note:''}];
+    saveBoard();
+    if($('scBoard').classList.contains('show'))renderBoard();
+    return mcOk('Removed '+(gone.system||'(blank)')+'.');
+  }
+},
+{
+  name:'clear-status-board',
+  description:'Empty the status board and start again.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    board={unit:'',node:'',overall:'PMC',rows:[{system:'',id:'',status:'FMC',note:''}]};
+    saveBoard();
+    if($('scBoard').classList.contains('show'))renderBoard();
+    return mcOk('Status board cleared.');
+  }
+},
+{
+  name:'build-status-board',
+  description:'Build the status board slides and hand them to the device to save. Returns the filename.',
+  inputSchema:{type:'object',properties:{}},
+  execute:function(){
+    loadBoard();
+    return buildBoardFile().then(function(b){
+      download(b,'boardMsg');
+      return mcOk('Built '+b.name+': '+b.cards+' cards, '+b.systems+' systems, '+
+        b.notes+' on the discrepancy slide.');
+    }).catch(function(e){return mcErr(e.message||String(e));});
+  }
+},
+{
+  name:'show-screen',
+  description:'Move the app to a screen: home, new-mission, status-board, or notes.',
+  inputSchema:{type:'object',properties:{screen:{type:'string',
+    description:'home, new-mission, status-board or notes'}},required:['screen']},
+  execute:function(a){
+    var map={'home':'scHome','new-mission':'scNew','status-board':'scBoard','notes':'scDay','who':'scWho'};
+    var id=map[String(a.screen||'').toLowerCase()];
+    if(!id)return mcErr('Screen must be one of: '+Object.keys(map).join(', ')+'.');
+    if(id==='scDay'&&!ready())return mcErr('There are no notes to show yet.');
+    if(id==='scBoard'){loadBoard();renderBoard();}
+    if(id==='scDay')renderDay();
+    show(id);
+    return mcOk('Showing '+a.screen+'.');
+  }
+}];
+
+function offerTools(){
+  var mc=mcHost();
+  if(!mc)return false;
+  try{
+    if(typeof mc.registerTool==='function'){
+      MCP_TOOLS.forEach(function(t){mc.registerTool(t);});
+      return true;
+    }
+    if(typeof mc.provideContext==='function'){
+      mc.provideContext({tools:MCP_TOOLS});
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+offerTools();
 
 /* ---------------- boot ---------------- */
 (function(){
