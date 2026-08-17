@@ -741,11 +741,14 @@ document.addEventListener('visibilitychange',function(){if(document.visibilitySt
 
 /* ---------------- save & share ---------------- */
 function outName(){
-  var base=(state.fileName||'trip_report').replace(/\.docx$/i,'');
+  /* Created missions are named the way the MCAT reports are: NNNNN is left literal for
+     the report number to be filled in, then the first day of the mission. */
   if(state.mission){
-    var where=(state.mission.missionLoc||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
-    base='Trip_Report'+(where?'_'+where:'');
+    var d=dateFromISO(state.mission.start);
+    if(d)return 'NNNNN_TR_MCAT_'+d.getDate()+'_'+
+      MONTHS[d.getMonth()].toUpperCase()+'_'+d.getFullYear()+'.docx';
   }
+  var base=(state.fileName||'trip_report').replace(/\.docx$/i,'');
   var last=(state.person||'').split(/\s+/).pop().replace(/[^A-Za-z\-]/g,'');
   return base+'_'+last+'.docx';
 }

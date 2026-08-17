@@ -85,7 +85,7 @@ const ok = (n, c, x) => { console.log((c ? 'PASS  ' : 'FAIL  ') + n + (c ? '' : 
   const out = path.join(WORK, 'mission.docx');
   await dl.saveAs(out);
   ok('produces a .docx', fs.existsSync(out) && fs.statSync(out).size > 500, 'size ' + fs.statSync(out).size);
-  ok('named from the mission', /^Trip_Report_Fort_Bliss_TX_Doe\.docx$/.test(dl.suggestedFilename()),
+  ok('named NNNNN_TR_MCAT_<first day>', dl.suggestedFilename() === 'NNNNN_TR_MCAT_3_MAR_2026.docx',
      dl.suggestedFilename());
 
   // ---- mission file round-trip on a clean phone ----
