@@ -756,8 +756,7 @@ function stateSig(){return JSON.stringify([state.fileName,state.person,state.sol
 function detailFor(name){
   var days=myDays(),total=days.length;
   var written=days.filter(function(d){return (state.notes[d.n]||'').trim();}).length;
-  return name+'\n'+written+' of '+total+' days filled.'+
-    (state.mission?'':'\nYour section only. Everyone else removed.');
+  return name+'\n'+written+' of '+total+' days filled.';
 }
 function buildBlob(){
   return Promise.resolve().then(function(){
