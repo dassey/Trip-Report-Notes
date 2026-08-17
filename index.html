@@ -67,6 +67,20 @@ input[type=file]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;bo
 .form select{padding-right:38px;
      background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238b98a9' stroke-width='2'/%3E%3C/svg%3E");
      background-repeat:no-repeat;background-position:right 14px center}
+.brow{border:1px solid var(--line);border-radius:var(--rad);background:var(--panel);
+       padding:12px;margin-bottom:10px}
+.brow .top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.brow .top .n{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:700;flex:1}
+.brow .del{border:0;background:transparent;color:var(--dim);font-size:22px;line-height:1;padding:0 6px;cursor:pointer}
+.brow input,.brow select{width:100%;min-height:46px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--ink);color:var(--text);font-family:inherit;font-size:16px;
+  -webkit-appearance:none;appearance:none;margin-bottom:8px}
+.brow input:focus,.brow select:focus{outline:none;border-color:var(--acc2)}
+.brow .pair{display:flex;gap:8px}
+.brow .pair>*{flex:1;min-width:0}
+.brow select{padding-right:34px;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238b98a9' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
 .form .two{display:flex;gap:10px}
 .form .two>.row{flex:1;min-width:0}
 
@@ -132,6 +146,7 @@ textarea:focus{outline:none;border-color:var(--acc2)}
     <input type="file" id="restorePick" accept=".docx,.json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/json,text/plain">
     <label class="btn" for="pick">Upload Template<small>A .docx trip report with everyone&rsquo;s sections</small></label>
     <input type="file" id="pick" accept=".docx,.json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/json,text/plain">
+    <button class="btn" id="boardBtn">Status Board<small>Node status slides &mdash; systems, IDs, statuses and discrepancies</small></button>
     <div id="tplMsg"></div>
     <p class="note" id="a2hs" hidden>Keep this on the phone: tap <strong>Share</strong> at the bottom of Safari, then <strong>Add to Home Screen</strong>. It opens full screen and works with no signal.</p>
   </section>
@@ -164,6 +179,23 @@ textarea:focus{outline:none;border-color:var(--acc2)}
     <p class="lede">Which one are you?</p>
     <div id="whoList"></div>
     <button class="btn ghost" id="whoBack">Use a different template</button>
+  </section>
+
+  <section class="screen" id="scBoard">
+    <div class="form">
+      <div class="two">
+        <div class="row"><label for="bUnit">Unit</label><input id="bUnit" type="text" autocapitalize="characters"></div>
+        <div class="row"><label for="bNode">Node no.</label><input id="bNode" type="text" autocapitalize="characters"></div>
+      </div>
+      <div class="row"><label for="bOverall">Overall node status</label><select id="bOverall"></select></div>
+    </div>
+    <h2>Systems</h2>
+    <div id="bRows"></div>
+    <button class="btn ghost" id="bAdd">Add a system</button>
+    <div id="boardMsg"></div>
+    <button class="btn primary" id="bMake">Save &amp; share</button>
+    <button class="btn ghost" id="bBack">Back</button>
+    <p class="note">Systems sharing an ID are grouped into one card on slide 1. Anything with a discrepancy also lands in the table on slide 2.</p>
   </section>
 
   <section class="screen" id="scDay">
@@ -507,6 +539,265 @@ function buildMissionZip(){
   return zip;
 }
 
+/* The rest of the package: one master, one blank layout, a theme, and the plumbing.
+   Written out in full because PowerPoint refuses a deck that is missing any of it. */
+var A_NS='http://schemas.openxmlformats.org/drawingml/2006/main';
+var R_NS='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+var P_NS='http://schemas.openxmlformats.org/presentationml/2006/main';
+var PML='application/vnd.openxmlformats-officedocument.presentationml';
+var PPTX=PML+'.presentation';
+var XD='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+
+var P_CT=XD+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+'<Default Extension="xml" ContentType="application/xml"/>'+
+'<Override PartName="/ppt/presentation.xml" ContentType="'+PPTX+'.main+xml"/>'+
+'<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="'+PML+'.slideMaster+xml"/>'+
+'<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="'+PML+'.slideLayout+xml"/>'+
+'<Override PartName="/ppt/slides/slide1.xml" ContentType="'+PML+'.slide+xml"/>'+
+'<Override PartName="/ppt/slides/slide2.xml" ContentType="'+PML+'.slide+xml"/>'+
+'<Override PartName="/ppt/tableStyles.xml" ContentType="'+PML+'.tableStyles+xml"/>'+
+'<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'+
+'</Types>';
+
+var P_RELS=XD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="'+R_NS+'/officeDocument" Target="ppt/presentation.xml"/></Relationships>';
+
+var PRES_RELS=XD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="'+R_NS+'/slideMaster" Target="slideMasters/slideMaster1.xml"/>'+
+'<Relationship Id="rId2" Type="'+R_NS+'/slide" Target="slides/slide1.xml"/>'+
+'<Relationship Id="rId3" Type="'+R_NS+'/slide" Target="slides/slide2.xml"/>'+
+'<Relationship Id="rId4" Type="'+R_NS+'/theme" Target="theme/theme1.xml"/>'+
+'<Relationship Id="rId5" Type="'+R_NS+'/tableStyles" Target="tableStyles.xml"/></Relationships>';
+
+var PRES=XD+'<p:presentation xmlns:a="'+A_NS+'" xmlns:r="'+R_NS+'" xmlns:p="'+P_NS+'">'+
+'<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'+
+'<p:sldIdLst><p:sldId id="256" r:id="rId2"/><p:sldId id="257" r:id="rId3"/></p:sldIdLst>'+
+'<p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>';
+
+var MASTER_RELS=XD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="'+R_NS+'/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'+
+'<Relationship Id="rId2" Type="'+R_NS+'/theme" Target="../theme/theme1.xml"/></Relationships>';
+
+var EMPTY_TREE='<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'+
+'<p:grpSpPr/></p:spTree>';
+
+var MASTER=XD+'<p:sldMaster xmlns:a="'+A_NS+'" xmlns:r="'+R_NS+'" xmlns:p="'+P_NS+'">'+
+'<p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="EEF1F5"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>'+
+EMPTY_TREE+'</p:cSld>'+
+'<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3"'+
+' accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'+
+'<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>';
+
+var LAYOUT_RELS=XD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="'+R_NS+'/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>';
+
+var LAYOUT=XD+'<p:sldLayout xmlns:a="'+A_NS+'" xmlns:r="'+R_NS+'" xmlns:p="'+P_NS+'" type="blank" preserve="1">'+
+'<p:cSld name="Blank">'+EMPTY_TREE+'</p:cSld>'+
+'<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>';
+
+var SLIDE_RELS=XD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+'<Relationship Id="rId1" Type="'+R_NS+'/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>';
+
+var TABLE_STYLES=XD+'<a:tblStyleLst xmlns:a="'+A_NS+'" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>';
+
+function themeColor(tag,hex){return '<a:'+tag+'><a:srgbClr val="'+hex+'"/></a:'+tag+'>';}
+var THEME=XD+'<a:theme xmlns:a="'+A_NS+'" name="Node Status Board">'+
+'<a:themeElements><a:clrScheme name="Node Status Board">'+
+'<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'+
+'<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'+
+themeColor('dk2','1B2A41')+themeColor('lt2','EEF1F5')+
+themeColor('accent1','1B2A41')+themeColor('accent2','C0504D')+themeColor('accent3','00B050')+
+themeColor('accent4','5D6B7A')+themeColor('accent5','4BACC6')+themeColor('accent6','F79646')+
+themeColor('hlink','0000FF')+themeColor('folHlink','800080')+'</a:clrScheme>'+
+'<a:fontScheme name="Calibri"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'+
+'<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'+
+'<a:fmtScheme name="Office">'+
+'<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'+
+'<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'+
+'<a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'+
+'<a:lnStyleLst>'+
+'<a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>'+
+'<a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>'+
+'<a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>'+
+'</a:lnStyleLst>'+
+'<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle>'+
+'<a:effectStyle><a:effectLst/></a:effectStyle>'+
+'<a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'+
+'<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'+
+'<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'+
+'<a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>'+
+'</a:fmtScheme></a:themeElements></a:theme>';
+
+function buildBoardZip(){
+  sid=1;
+  var zip=new JSZip();
+  zip.file('[Content_Types].xml',P_CT);
+  zip.folder('_rels').file('.rels',P_RELS);
+  var ppt=zip.folder('ppt');
+  ppt.file('presentation.xml',PRES);
+  ppt.file('tableStyles.xml',TABLE_STYLES);
+  ppt.folder('_rels').file('presentation.xml.rels',PRES_RELS);
+  ppt.folder('theme').file('theme1.xml',THEME);
+  var sm=ppt.folder('slideMasters');
+  sm.file('slideMaster1.xml',MASTER);
+  sm.folder('_rels').file('slideMaster1.xml.rels',MASTER_RELS);
+  var sl=ppt.folder('slideLayouts');
+  sl.file('slideLayout1.xml',LAYOUT);
+  sl.folder('_rels').file('slideLayout1.xml.rels',LAYOUT_RELS);
+  var s=ppt.folder('slides');
+  s.file('slide1.xml',slideOne());
+  s.file('slide2.xml',slideTwo());
+  var sr=s.folder('_rels');
+  sr.file('slide1.xml.rels',SLIDE_RELS);
+  sr.file('slide2.xml.rels',SLIDE_RELS);
+  return zip;
+}
+
+/* ---------------- status board: a .pptx written from scratch ---------------- */
+/* Geometry, palette and wording are lifted from the Node Status Board deck so the
+   output drops in beside it: 13.33x7.5, Calibri, navy on a pale grey field. */
+var BOARD_KEY='tripnotes.board.v1';
+var STATUSES=['FMC','PMC','NMC','N/A'];
+var ST_FILL={'FMC':'00B050','PMC':'F79646','NMC':'C0504D','N/A':'5D6B7A'};
+var ST_MEANS={'FMC':'Fully mission capable','PMC':'Degraded, workaround in place',
+  'NMC':'Cannot support the mission','N/A':'Not applicable / not assessed'};
+var NAVY='1B2A41',FIELD='EEF1F5',CARD='FFFFFF',BAND='F4F6F9',MUTED='637282',SUBTLE='B8C9DE';
+var MAX_CARDS=8,MAX_ROWS=8;
+var board={unit:'',node:'',overall:'PMC',rows:[]};
+
+function emu(inch){return Math.round(inch*914400);}
+var sid=1;
+function tx(text,o){
+  o=o||{};
+  if(!text)return '';
+  return '<a:r><a:rPr lang="en-US" sz="'+(o.sz||1200)+'"'+(o.b?' b="1"':'')+
+    (o.spc?' spc="'+o.spc+'"':'')+'><a:solidFill><a:srgbClr val="'+(o.color||NAVY)+'"/></a:solidFill>'+
+    '<a:latin typeface="Calibri"/><a:cs typeface="Calibri"/></a:rPr>'+
+    '<a:t>'+xesc(text)+'</a:t></a:r>';
+}
+function sp(o){
+  var id=++sid;
+  var fill=o.fill?'<a:solidFill><a:srgbClr val="'+o.fill+'"/></a:solidFill>':'<a:noFill/>';
+  var geom=o.pill?'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>'
+                 :'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
+  var ins=o.text?' lIns="'+emu(o.padX||0.05)+'" rIns="'+emu(o.padX||0.05)+'" tIns="0" bIns="0"':
+                 ' lIns="0" rIns="0" tIns="0" bIns="0"';
+  return '<p:sp><p:nvSpPr><p:cNvPr id="'+id+'" name="s'+id+'"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'+
+    '<p:spPr><a:xfrm><a:off x="'+emu(o.x)+'" y="'+emu(o.y)+'"/>'+
+    '<a:ext cx="'+emu(o.w)+'" cy="'+emu(o.h)+'"/></a:xfrm>'+geom+fill+'<a:ln><a:noFill/></a:ln></p:spPr>'+
+    '<p:txBody><a:bodyPr wrap="square" anchor="'+(o.anchor||'ctr')+'"'+ins+'><a:normAutofit/></a:bodyPr>'+
+    '<a:lstStyle/><a:p><a:pPr algn="'+(o.algn||'l')+'"/>'+tx(o.text,o)+'</a:p></p:txBody></p:sp>';
+}
+function groupRows(rows){
+  var order=[],by={};
+  rows.forEach(function(r){
+    var k=(r.id||'').trim()||'—';
+    if(!by[k]){by[k]=[];order.push(k);}
+    by[k].push(r);
+  });
+  return order.map(function(k){return{id:k,rows:by[k]};});
+}
+function slideOne(){
+  var b=['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<p:sld xmlns:a="'+A_NS+'" xmlns:r="'+R_NS+'" xmlns:p="'+P_NS+'"><p:cSld><p:spTree>',
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>',
+    '<p:grpSpPr/>'];
+  b.push(sp({x:0,y:0,w:13.333,h:7.5,fill:FIELD}));
+  b.push(sp({x:0,y:0,w:13.333,h:0.98,fill:NAVY}));
+  b.push(sp({x:0.45,y:0.30,w:7,h:0.42,text:'NODE STATUS BOARD',sz:2200,b:1,color:'FFFFFF',spc:120,padX:0}));
+  b.push(sp({x:8.35,y:0.40,w:2.55,h:0.42,text:'OVERALL NODE STATUS',sz:900,b:1,color:SUBTLE,spc:60,algn:'r',padX:0}));
+  b.push(sp({x:11.10,y:0.38,w:1.78,h:0.46,fill:ST_FILL[board.overall]||ST_FILL.PMC,pill:1,
+             text:board.overall,sz:1700,b:1,color:'FFFFFF',algn:'ctr'}));
+  b.push(sp({x:0.40,y:1.08,w:2.93,h:0.20,text:'UNIT',sz:750,b:1,color:MUTED,spc:80,padX:0}));
+  b.push(sp({x:0.40,y:1.28,w:2.93,h:0.22,text:board.unit||'—',sz:1150,b:1,color:NAVY,padX:0}));
+  b.push(sp({x:3.53,y:1.08,w:2.93,h:0.20,text:'NODE NO.',sz:750,b:1,color:MUTED,spc:80,padX:0}));
+  b.push(sp({x:3.53,y:1.28,w:2.93,h:0.22,text:board.node||'—',sz:1150,b:1,color:NAVY,padX:0}));
+
+  var groups=groupRows(board.rows),LEFT=0.40,GAP=0.25,TOP=1.66,BOTTOM=6.18;
+  var usable=13.333-LEFT*2;
+  var perRow=Math.min(groups.length||1,4);
+  var bands=Math.ceil((groups.length||1)/perRow);
+  var cw=(usable-GAP*(perRow-1))/perRow;
+  var ch=(BOTTOM-TOP-GAP*(bands-1))/bands;
+  var most=1;
+  groups.forEach(function(g){if(g.rows.length>most)most=g.rows.length;});
+  var rh=Math.min(0.62,(ch-0.64)/most);
+
+  groups.forEach(function(g,i){
+    var col=i%perRow,band=Math.floor(i/perRow);
+    var x=LEFT+col*(cw+GAP),y=TOP+band*(ch+GAP);
+    b.push(sp({x:x,y:y,w:cw,h:ch,fill:CARD}));
+    b.push(sp({x:x,y:y,w:cw,h:0.46,fill:NAVY}));
+    b.push(sp({x:x,y:y,w:cw,h:0.46,text:g.id,sz:1500,b:1,color:'FFFFFF',spc:200,algn:'ctr'}));
+    g.rows.forEach(function(r,j){
+      var ry=y+0.52+j*rh;
+      if(j%2===1)b.push(sp({x:x+0.04,y:ry,w:cw-0.08,h:rh,fill:BAND}));
+      var st=ST_FILL[r.status]?r.status:'N/A';
+      b.push(sp({x:x+0.16,y:ry+(rh-0.30)/2,w:0.72,h:0.30,fill:ST_FILL[st],pill:1,
+                 text:st,sz:950,b:1,color:'FFFFFF',algn:'ctr'}));
+      b.push(sp({x:x+1.00,y:ry,w:cw-1.16,h:rh,text:r.system||'',sz:1300,color:NAVY,padX:0}));
+    });
+  });
+
+  b.push(sp({x:0.40,y:6.28,w:12.53,h:0.70,fill:CARD}));
+  b.push(sp({x:0.58,y:6.28,w:0.80,h:0.70,text:'LEGEND',sz:850,b:1,color:MUTED,spc:90,padX:0}));
+  STATUSES.forEach(function(s,i){
+    var x=1.60+i*2.72;
+    b.push(sp({x:x,y:6.50,w:0.68,h:0.26,fill:ST_FILL[s],pill:1,text:s,sz:850,b:1,color:'FFFFFF',algn:'ctr'}));
+    b.push(sp({x:x+0.78,y:6.28,w:1.85,h:0.70,text:ST_MEANS[s],sz:900,color:NAVY,padX:0}));
+  });
+  b.push('</p:spTree></p:cSld><p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"'+
+    ' accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5"'+
+    ' accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr></p:sld>');
+  return b.join('');
+}
+function tcell(text,o){
+  o=o||{};
+  return '<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr algn="'+(o.algn||'l')+'"/>'+
+    tx(text,o)+'</a:p></a:txBody><a:tcPr marL="'+emu(0.10)+'" marR="'+emu(0.10)+'" anchor="ctr">'+
+    '<a:solidFill><a:srgbClr val="'+(o.fill||CARD)+'"/></a:solidFill></a:tcPr></a:tc>';
+}
+function slideTwo(){
+  var notes=board.rows.filter(function(r){return (r.note||'').trim();});
+  var b=['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<p:sld xmlns:a="'+A_NS+'" xmlns:r="'+R_NS+'" xmlns:p="'+P_NS+'"><p:cSld><p:spTree>',
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'];
+  b.push(sp({x:0,y:0,w:13.333,h:7.5,fill:FIELD}));
+  b.push(sp({x:0,y:0,w:13.333,h:0.98,fill:NAVY}));
+  b.push(sp({x:0.45,y:0.30,w:7,h:0.42,text:'OPEN DISCREPANCIES',sz:2200,b:1,color:'FFFFFF',spc:120,padX:0}));
+
+  var cols=[4.32,1.60,6.76],rows=[];
+  rows.push('<a:tr h="'+emu(0.42)+'">'+
+    tcell('SYSTEM  /  ITEM',{sz:1100,b:1,color:'FFFFFF',fill:NAVY})+
+    tcell('STATUS',{sz:1100,b:1,color:'FFFFFF',fill:NAVY,algn:'ctr'})+
+    tcell('DISCREPANCY',{sz:1100,b:1,color:'FFFFFF',fill:NAVY})+'</a:tr>');
+  var body=notes.slice(0,9),blank=Math.max(0,3-body.length);
+  body.forEach(function(r,i){
+    var f=(i%2===1)?BAND:CARD;
+    var who=((r.id||'').trim()?(r.id.trim()+' '):'')+(r.system||'');
+    rows.push('<a:tr h="'+emu(0.62)+'">'+
+      tcell(who,{sz:1200,fill:f})+
+      tcell(ST_FILL[r.status]?r.status:'N/A',{sz:1200,b:1,fill:f,algn:'ctr',color:ST_FILL[r.status]||MUTED})+
+      tcell(r.note||'',{sz:1200,fill:f})+'</a:tr>');
+  });
+  for(var k=0;k<blank;k++){
+    var f2=((body.length+k)%2===1)?BAND:CARD;
+    rows.push('<a:tr h="'+emu(0.62)+'">'+tcell('',{fill:f2})+tcell('',{fill:f2})+tcell('',{fill:f2})+'</a:tr>');
+  }
+  b.push('<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="'+(++sid)+'" name="Discrepancies"/>'+
+    '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>'+
+    '<p:xfrm><a:off x="'+emu(0.40)+'" y="'+emu(1.30)+'"/><a:ext cx="'+emu(12.68)+'" cy="'+emu(0.42+0.62*(body.length+blank))+'"/></p:xfrm>'+
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">'+
+    '<a:tbl><a:tblPr firstRow="1"/><a:tblGrid>'+
+    cols.map(function(c){return '<a:gridCol w="'+emu(c)+'"/>';}).join('')+
+    '</a:tblGrid>'+rows.join('')+'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>');
+  b.push('</p:spTree></p:cSld><p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"'+
+    ' accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5"'+
+    ' accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr></p:sld>');
+  return b.join('');
+}
+
 /* ---------------- base64 ---------------- */
 function abToB64(buf){var b=new Uint8Array(buf),s='',C=0x8000;
   for(var i=0;i<b.length;i+=C)s+=String.fromCharCode.apply(null,b.subarray(i,i+C));return btoa(s);}
@@ -523,7 +814,7 @@ function readBuf(file){
 }
 
 /* ---------------- ui ---------------- */
-function show(id){['scHome','scNew','scWho','scDay'].forEach(function(s){$(s).classList.toggle('show',s===id);});
+function show(id){['scHome','scNew','scBoard','scWho','scDay'].forEach(function(s){$(s).classList.toggle('show',s===id);});
   $('bar').style.display=(id==='scDay')?'flex':'none';
   var m=document.querySelector('main');if(m)m.scrollTop=0;}
 function say(el,title,detail,cls){$(el).innerHTML='<div class="msg '+(cls||'')+'"><b>'+esc(title)+'</b>'+
@@ -739,6 +1030,94 @@ function panicSave(){
 window.addEventListener('pagehide',panicSave);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')panicSave();});
 
+
+/* ---------------- status board: screen ---------------- */
+function loadBoard(){
+  try{var raw=localStorage.getItem(BOARD_KEY);if(raw){var d=JSON.parse(raw);
+    if(d&&typeof d==='object'){board={unit:d.unit||'',node:d.node||'',overall:d.overall||'PMC',
+      rows:Array.isArray(d.rows)?d.rows:[]};}}}catch(e){}
+  if(!board.rows.length)board.rows=[{system:'',id:'',status:'FMC',note:''}];
+}
+function saveBoard(){try{localStorage.setItem(BOARD_KEY,JSON.stringify(board));}catch(e){}}
+function statusOptions(sel){
+  return STATUSES.map(function(s){
+    return '<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(s)+'</option>';}).join('');
+}
+function renderBoard(){
+  $('bUnit').value=board.unit;
+  $('bNode').value=board.node;
+  $('bOverall').innerHTML=statusOptions(board.overall);
+  var h='';
+  board.rows.forEach(function(r,i){
+    h+='<div class="brow" data-i="'+i+'">'+
+       '<div class="top"><div class="n">System '+(i+1)+'</div>'+
+       '<button class="del" data-del="'+i+'" aria-label="Remove">&times;</button></div>'+
+       '<input class="f-system" placeholder="System" value="'+esc(r.system)+'">'+
+       '<div class="pair"><input class="f-id" placeholder="ID" value="'+esc(r.id)+'">'+
+       '<select class="f-status">'+statusOptions(r.status)+'</select></div>'+
+       '<input class="f-note" placeholder="Discrepancy (optional)" value="'+esc(r.note)+'">'+
+       '</div>';
+  });
+  $('bRows').innerHTML=h;
+  Array.prototype.forEach.call($('bRows').children,function(el){
+    var i=+el.dataset.i;
+    el.querySelector('.f-system').oninput=function(){board.rows[i].system=this.value;saveBoard();};
+    el.querySelector('.f-id').oninput=function(){board.rows[i].id=this.value;saveBoard();};
+    el.querySelector('.f-note').oninput=function(){board.rows[i].note=this.value;saveBoard();};
+    el.querySelector('.f-status').onchange=function(){board.rows[i].status=this.value;saveBoard();};
+    el.querySelector('.del').onclick=function(){
+      board.rows.splice(i,1);
+      if(!board.rows.length)board.rows=[{system:'',id:'',status:'FMC',note:''}];
+      saveBoard();renderBoard();
+    };
+  });
+}
+$('boardBtn').onclick=function(){loadBoard();renderBoard();$('boardMsg').innerHTML='';show('scBoard');};
+$('bBack').onclick=function(){show('scHome');};
+$('bUnit').oninput=function(){board.unit=this.value;saveBoard();};
+$('bNode').oninput=function(){board.node=this.value;saveBoard();};
+$('bOverall').onchange=function(){board.overall=this.value;saveBoard();};
+$('bAdd').onclick=function(){
+  var last=board.rows[board.rows.length-1]||{};
+  board.rows.push({system:'',id:last.id||'',status:'FMC',note:''});
+  saveBoard();renderBoard();
+  var rows=$('bRows').children;
+  if(rows.length)rows[rows.length-1].querySelector('.f-system').focus();
+};
+function boardName(){
+  var n=(board.node||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  return 'Node_Status_Board'+(n?'_'+n:'')+'.pptx';
+}
+$('bMake').onclick=function(){
+  var live=board.rows.filter(function(r){return (r.system||'').trim()||(r.id||'').trim();});
+  if(!live.length)return say('boardMsg','Nothing to put on the board','Add a system first.','bad');
+  var groups=groupRows(live);
+  if(groups.length>MAX_CARDS)
+    return say('boardMsg','Too many IDs for one slide',groups.length+' IDs, and '+MAX_CARDS+' is what fits.','bad');
+  var over=null;
+  groups.forEach(function(g){if(g.rows.length>MAX_ROWS)over=g.id;});
+  if(over)return say('boardMsg','Too many systems under one ID','"'+over+'" has more than '+MAX_ROWS+'.','bad');
+
+  var keep=board.rows;
+  board.rows=live;
+  var btn=this;btn.disabled=true;
+  say('boardMsg','Building the slides','One moment.','');
+  Promise.resolve().then(function(){
+    return buildBoardZip().generateAsync({type:'blob',mimeType:PPTX});
+  }).then(function(blob){
+    board.rows=keep;btn.disabled=false;
+    var name=boardName(),file=null;
+    try{file=new File([blob],name,{type:PPTX});}catch(e){}
+    var notes=live.filter(function(r){return (r.note||'').trim();}).length;
+    var detail=name+'\n'+groups.length+(groups.length===1?' card, ':' cards, ')+live.length+
+      ' system'+(live.length===1?'':'s')+', '+notes+' on the discrepancy slide.';
+    deliver({file:file,blob:blob,name:name,detail:detail,sig:'board'},'boardMsg');
+  }).catch(function(err){
+    board.rows=keep;btn.disabled=false;
+    say('boardMsg','Could not build the slides',err&&err.message?err.message:String(err),'bad');
+  });
+};
+
 /* ---------------- save & share ---------------- */
 function outName(){
   /* Created missions are named the way the MCAT reports are: NNNNN is left literal for
@@ -794,41 +1173,44 @@ function schedulePrebuild(){
 function canShare(b){
   return !!(b.file&&navigator.canShare&&navigator.share&&navigator.canShare({files:[b.file]}));
 }
-function download(b){
+function download(b,el){
+  el=el||'dayMsg';
   var url=URL.createObjectURL(b.blob),a=document.createElement('a');
   a.href=url;a.download=b.name;a.rel='noopener';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},60000);
-  say('dayMsg','Saved to your files',b.detail+'\nIt is in Files, under Downloads.','good');
+  say(el,'Saved to your files',b.detail+'\nIt is in Files, under Downloads.','good');
 }
-function offerShare(b,why){
-  $('dayMsg').innerHTML='<div class="msg"><b>Your document is ready</b>\n'+esc(b.detail)+
+function offerShare(b,why,el){
+  el=el||'dayMsg';
+  $(el).innerHTML='<div class="msg"><b>Your document is ready</b>\n'+esc(b.detail)+
     (why?'\n\nSafari would not open the share sheet on its own'+(why.name?' ('+esc(why.name)+')':'')+
     '. Tap below and it will.':'')+'</div>'+
     '<button class="btn primary" id="doShare" style="margin-top:10px">Share it</button>'+
     '<button class="btn ghost" id="doSave">Save to Files instead</button>';
   if($('doShare'))$('doShare').onclick=function(){
-    if(!canShare(b))return download(b);
+    if(!canShare(b))return download(b,el);
     navigator.share({files:[b.file]}).then(function(){
-      say('dayMsg','Shared',b.detail,'good');
+      say(el,'Shared',b.detail,'good');
     }).catch(function(err){
-      if(err&&err.name==='AbortError'){say('dayMsg','Sharing cancelled','Your notes are still here.','');return;}
-      download(b);
+      if(err&&err.name==='AbortError'){say(el,'Sharing cancelled','Nothing was lost.','');return;}
+      download(b,el);
     });
   };
-  if($('doSave'))$('doSave').onclick=function(){download(b);};
+  if($('doSave'))$('doSave').onclick=function(){download(b,el);};
 }
-function deliver(b){
-  if(!canShare(b))return download(b);
+function deliver(b,el){
+  el=el||'dayMsg';
+  if(!canShare(b))return download(b,el);
   var p;
   /* Files and nothing else: a title here comes through as a separate text item on
      iOS, which lands as a stray .txt beside the document. */
   try{p=navigator.share({files:[b.file]});}
-  catch(err){offerShare(b,err);return;}
-  p.then(function(){say('dayMsg','Shared',b.detail,'good');})
+  catch(err){offerShare(b,err,el);return;}
+  p.then(function(){say(el,'Shared',b.detail,'good');})
    .catch(function(err){
-     if(err&&err.name==='AbortError'){say('dayMsg','Sharing cancelled','Your notes are still here.','');return;}
-     offerShare(b,err);
+     if(err&&err.name==='AbortError'){say(el,'Sharing cancelled','Nothing was lost.','');return;}
+     offerShare(b,err,el);
    });
 }
 $('save').onclick=function(){
