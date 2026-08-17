@@ -84,7 +84,7 @@ input[type=file]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;bo
 .dayhead .t{font-size:20px;font-weight:700;letter-spacing:-.01em}
 .dayhead .d{font-size:13px;color:var(--dim);margin-top:2px}
 textarea{width:100%;min-height:210px;padding:14px;border:1px solid var(--line);border-radius:var(--rad);
-         background:var(--panel);color:var(--text);font-family:inherit;font-size:16px;line-height:1.55;resize:vertical}
+         background:var(--panel);color:var(--text);font-family:inherit;font-size:17px;line-height:1.5;resize:vertical}
 textarea:focus{outline:none;border-color:var(--acc2)}
 
 .bar{flex:0 0 auto;display:flex;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
@@ -195,6 +195,16 @@ function fitVV(){
   var h=vv?vv.height:window.innerHeight;
   if(h>0)document.documentElement.style.setProperty('--vh',h+'px');
   if(vv&&vv.offsetTop>0)window.scrollTo(0,0);
+  if(document.activeElement===$('ta'))setTimeout(revealNotes,0);
+}
+/* Pinning the height means iOS no longer scrolls the page to reveal the focused box —
+   it has no reason to, the page already fits. So bring the box up ourselves, or it
+   sits below the fold behind the keyboard and you cannot see what you are typing. */
+function revealNotes(){
+  var ta=$('ta'),m=document.querySelector('main');
+  if(!ta||!m||document.activeElement!==ta)return;
+  var top=ta.getBoundingClientRect().top-m.getBoundingClientRect().top+m.scrollTop;
+  m.scrollTop=Math.max(0,top-10);
 }
 if(vv){vv.addEventListener('resize',fitVV);vv.addEventListener('scroll',fitVV);}
 window.addEventListener('orientationchange',function(){setTimeout(fitVV,300);});
@@ -469,6 +479,8 @@ function renderDay(){
   var el=$('strip').querySelector('.cur');if(el&&el.scrollIntoView)el.scrollIntoView({inline:'center',block:'nearest'});
 }
 function flush(){var v=$('ta').value;if(v.trim())state.notes[state.curDay]=v;else delete state.notes[state.curDay];}
+/* Twice: once immediately, once after the keyboard has finished sliding up. */
+$('ta').addEventListener('focus',function(){setTimeout(revealNotes,60);setTimeout(revealNotes,400);});
 $('ta').oninput=function(){
   clearTimeout(tmr);
   tmr=setTimeout(function(){
