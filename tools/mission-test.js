@@ -27,7 +27,9 @@ const ok = (n, c, x) => { console.log((c ? 'PASS  ' : 'FAIL  ') + n + (c ? '' : 
   ok('start location prefilled HOR', (await p.inputValue('#fStartLoc')) === 'HOR');
   ok('next location prefilled HOR', (await p.inputValue('#fNextLoc')) === 'HOR');
   const roles = await p.$$eval('#fRole option', o => o.map(x => x.value));
-  ok('role is a dropdown with options', roles.length > 3 && roles.includes('Network SME'), JSON.stringify(roles));
+  ok('role dropdown carries the MCAT roles',
+     ['Intel SME','AIR Systems SME','Network SME','Maneuver Systems SME','MCAT Lead']
+       .every(r => roles.includes(r)), JSON.stringify(roles));
   ok('"Other" field hidden until chosen', await p.isHidden('#rowOther'));
   await p.selectOption('#fRole', 'Other…');
   ok('"Other" reveals a text field', await p.isVisible('#rowOther'));
@@ -52,13 +54,19 @@ const ok = (n, c, x) => { console.log((c ? 'PASS  ' : 'FAIL  ') + n + (c ? '' : 
   const days = await p.$$eval('#strip .day', e => e.map(x => x.textContent));
   ok('5 days from 3–7 March', days.join(',') === '1,2,3,4,5', days.join(','));
   ok('day 1 titled', (await p.textContent('#dTitle')) === 'Day One', await p.textContent('#dTitle'));
-  ok('day 1 dated', (await p.textContent('#dDate')) === '3 March 2026', await p.textContent('#dDate'));
+  ok('day 1 dated in house format', (await p.textContent('#dDate')) === '03 Mar 2026', await p.textContent('#dDate'));
   await p.click('#strip .day:nth-child(5)');
-  ok('day 5 dated', (await p.textContent('#dDate')) === '7 March 2026', await p.textContent('#dDate'));
+  ok('day 5 dated in house format', (await p.textContent('#dDate')) === '07 Mar 2026', await p.textContent('#dDate'));
 
   // ---- write notes, save ----
   await p.click('#strip .day:nth-child(1)');
-  await p.fill('#ta', 'Set up the network.\nSecond line.');
+  ok('day 1 pre-seeded with the outbound travel',
+     (await p.inputValue('#ta')) === 'Travel from HOR to Fort Bliss, TX', await p.inputValue('#ta'));
+  await p.click('#strip .day:nth-child(5)');
+  ok('last day pre-seeded with the return travel',
+     (await p.inputValue('#ta')) === 'Travel from Fort Bliss, TX to HOR', await p.inputValue('#ta'));
+  await p.click('#strip .day:nth-child(1)');
+  await p.fill('#ta', 'Travel from HOR to Fort Bliss, TX\nSet up the network.');
   await p.waitForFunction(() => document.getElementById('savedAt').textContent === 'kept');
   await p.click('#strip .day:nth-child(3)');
   await p.fill('#ta', 'Day three work.');
