@@ -8,9 +8,10 @@ push, open the PR, then merge it to `main` — without stopping to ask for the m
 If a change should stop short of `main`, the owner will say so. Absent that, treat
 "done" as "merged and deployed".
 
-Deploying is what makes the app real: `main` publishes to GitHub Pages via
-`.github/workflows/pages.yml`, and the phone loads whatever is on Pages. A merged PR
-that was never deployed is not finished.
+Deploying is what makes the app real: GitHub Pages serves the repository root of
+`main`, and the phone loads whatever is on Pages. A merged PR that was never deployed
+is not finished. Anything committed to `main` is published — this is a public site, so
+nothing private belongs in the repo.
 
 ## What still needs a human
 

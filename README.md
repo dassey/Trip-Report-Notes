@@ -15,9 +15,9 @@ the phone — the app rewrites the Word file in the browser.
 2. Tap **Share → Add to Home Screen**. It opens full screen, with no address bar, and
    works with no signal after the first visit.
 
-Pages is already on for this repository, and every push to `main` republishes it. A
-fresh fork needs it turned on once: **Settings → Pages → Build and deployment →
-Source: GitHub Actions**.
+Pages is on, serving the repository root of `main`, so every push to `main`
+republishes the site. A fresh fork needs it turned on once: **Settings → Pages →
+Build and deployment → Deploy from a branch → `main` / (root)**.
 
 Do not AirDrop `index.html` and open it from Files — Safari blocks storage on
 `file://`, so notes will not be kept. It has to be served over `https`.
@@ -59,7 +59,7 @@ is passed through untouched.
 | `sw.js` | Service worker, caches the shell so the app opens offline |
 | `manifest.webmanifest` | Home Screen name, icons, standalone display |
 | `icon-*.png` | Icons, regenerate with `python3 tools/make-icons.py` |
-| `.github/workflows/pages.yml` | Publishes to GitHub Pages on push to `main` |
+| `.nojekyll` | Stops Pages running the files through Jekyll |
 
 Storage is split: the notes go to `localStorage`, the template `.docx` goes to
 IndexedDB. Safari caps `localStorage` near 5 MB, which a real template with images
@@ -82,6 +82,7 @@ npm i -D playwright && npx playwright install chromium
 mkdir -p /tmp/trip && python3 tools/make-fixture.py /tmp/trip/trip_report.docx
 python3 -m http.server 8777 &
 WORK=/tmp/trip node tools/smoke-test.js
+WORK=/tmp/trip node tools/keyboard-test.js   # the notes box vs. the keyboard
 ```
 
 It runs on Chromium, not Safari, so it is a regression net rather than proof about
